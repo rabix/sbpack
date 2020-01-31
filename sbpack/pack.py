@@ -105,8 +105,17 @@ def get_profile(profile):
     return api
 
 
+def validate_id(app_id: str):
+    parts = app_id.split("/")
+    if len(parts) != 3:
+        return False
+
+    illegal = set(".!@#$%^&*()")
+    return not any((c in illegal) for c in parts[2])
+
+
 def print_usage():
-    print("sbpack <profile> <appid> <cwl>")
+    print("sbpack <profile> <id> <cwl>")
 
 
 def main():
@@ -116,6 +125,10 @@ def main():
         exit(0)
 
     profile, appid, cwl_path = sys.argv[1:]
+
+    if not validate_id(appid):
+        print("Illegal characters in app id")
+        return
 
     file_path_url = urllib.parse.urlparse(cwl_path)
     base_url = file_path_url._replace(path=str(pathlib.Path(file_path_url.path).parent))

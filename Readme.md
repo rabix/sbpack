@@ -1,6 +1,6 @@
 # sbpack
 
-Packs a DocWithUrl workflow, resolving linked processes, includes and imports
+Packs a CWL workflow, resolving linked processes, includes and imports
 and uploads it to a project on the SB platform.
 
 ```
