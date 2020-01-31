@@ -78,9 +78,8 @@ def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult):
 def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=False):
 
     link_url = urllib.parse.urlparse(link)
-    if link_url.scheme in ["file", ""]:
+    if link_url.scheme in ["file://", ""]:
         new_url = base_url._replace(
-            scheme="file://",
             path=str((pathlib.Path(base_url.path) / pathlib.Path(link)).resolve()))
 
     else:
@@ -131,6 +130,9 @@ def main():
         return
 
     file_path_url = urllib.parse.urlparse(cwl_path)
+    if file_path_url.scheme == "":
+        file_path_url = file_path_url._replace(scheme="file://")
+
     base_url = file_path_url._replace(path=str(pathlib.Path(file_path_url.path).parent))
     link = str(pathlib.Path(file_path_url.path).name)
 
@@ -140,7 +142,7 @@ def main():
 
     api = get_profile(profile)
 
-    cwl["sbg:revisionNotes"] = "Uploaded using sbpack."
+    cwl["sbg:revisionNotes"] = f"Uploaded using sbpack. Source: {cwl_path}"
     try:
         app = api.apps.get(appid)
         logger.debug("Creating revised app: {}".format(appid))
