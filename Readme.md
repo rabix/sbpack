@@ -12,6 +12,19 @@ Here `<profle>` refers to a SB platform profile
 `<id>` takes the form `{user}/{project}/{app_id}` which installs (or updates)
 the app `id` located in `project` of `user`. 
  
+## Uploading workflows defined remotely
+
+`sbpack` handles local paths and remote URLs in a principled manner. This means that
+`sbpack` will handle packing and uploading a local workflow that links to a remote workflow
+which itself has linked workflows. It will therefore also handle packing a fully 
+remote workflow.
+
+For example, to pack and upload the workflow located at `https://github.com/Duke-GCB/GGR-cwl/blob/master/v1.0/ATAC-seq_pipeline/pipeline-se.cwl`
+go to the `raw` button and use that URL, like:
+
+```bash
+sbpack sbg kghosesbg/sbpla-31744/ATAC-seq-pipeline-se https://raw.githubusercontent.com/Duke-GCB/GGR-cwl/master/v1.0/ATAC-seq_pipeline/pipeline-se.cwl
+``` 
 
 ## Credentials file and profiles
 
