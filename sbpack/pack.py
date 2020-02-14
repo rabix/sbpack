@@ -131,13 +131,24 @@ def validate_id(app_id: str):
 
 
 def print_usage():
-    print("sbpack <profile> <id> <cwl>")
+    print(
+"""Usage
+   sbpack <profile> <id> <cwl>
+ 
+where:
+ <profile> refers to a SB platform profile as set in the SB API credentials file.
+ <id> takes the form {user}/{project}/{app_id} which installs (or updates) the app id located in project of user.
+ <cwl> is the path to the main CWL file. This can be a remote file.
+""")
 
 
 def main():
 
+    logging.basicConfig()
     logger.setLevel(logging.INFO)
-    logger.info(f"sbpack {__version__}")
+    print(f"\nsbpack v{__version__}\n"
+          f"Upload CWL apps to any Seven Bridges powered platform\n"
+          f"(c) Seven Bridges 2020\n")
 
     if len(sys.argv) != 4:
         print_usage()
@@ -162,7 +173,7 @@ def main():
 
     api = get_profile(profile)
 
-    cwl["sbg:revisionNotes"] = f"Uploaded using sbpack. Source: {cwl_path}"
+    cwl["sbg:revisionNotes"] = f"Uploaded using sbpack v{__version__}. \nSource: {cwl_path}"
     try:
         app = api.apps.get(appid)
         logger.debug("Creating revised app: {}".format(appid))

@@ -4,13 +4,14 @@ Packs a CWL workflow, resolving linked processes, includes and imports
 and uploads it to a project on the SB platform.
 
 ```
-sbpack <profile> <id> <cwl>
+Usage
+   sbpack <profile> <id> <cwl>
+ 
+where:
+ <profile> refers to a SB platform profile as set in the SB API credentials file.
+ <id> takes the form {user}/{project}/{app_id} which installs (or updates) the app id located in project of user.
+ <cwl> is the path to the main CWL file. This can be a remote file.
 ```
-
-Here `<profle>` refers to a SB platform profile
-
-`<id>` takes the form `{user}/{project}/{app_id}` which installs (or updates)
-the app `id` located in `project` of `user`. 
  
 ## Uploading workflows defined remotely
 
