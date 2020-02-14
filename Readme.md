@@ -1,5 +1,7 @@
 # sbpack
 
+![](https://github.com/kaushik-work/sbpack/workflows/Tests/badge.svg)
+
 Packs a CWL workflow, resolving linked processes, includes and imports
 and uploads it to a project on the SB platform.
 
