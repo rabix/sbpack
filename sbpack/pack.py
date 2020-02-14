@@ -136,10 +136,24 @@ def print_usage():
    sbpack <profile> <id> <cwl>
  
 where:
- <profile> refers to a SB platform profile as set in the SB API credentials file.
- <id> takes the form {user}/{project}/{app_id} which installs (or updates) the app id located in project of user.
- <cwl> is the path to the main CWL file. This can be a remote file.
+  <profile> refers to a SB platform profile as set in the SB API credentials file.
+  <id> takes the form {user}/{project}/{app_id} which installs (or updates) 
+       "app_id" located in "project" of "user".
+  <cwl> is the path to the main CWL file to be uploaded. This can be a remote file.
 """)
+
+
+def pack(cwl_path: str):
+    file_path_url = urllib.parse.urlparse(cwl_path)
+    if file_path_url.scheme == "":
+        file_path_url = file_path_url._replace(scheme="file://")
+
+    base_url = file_path_url._replace(path=str(pathlib.Path(file_path_url.path).parent))
+    link = str(pathlib.Path(file_path_url.path).name)
+
+    cwl, base_url = load_linked_file(base_url=base_url, link=link, is_import=True)
+    cwl = pack_process(cwl, base_url)
+    return cwl
 
 
 def main():
@@ -160,15 +174,7 @@ def main():
         print("Illegal characters in app id")
         return
 
-    file_path_url = urllib.parse.urlparse(cwl_path)
-    if file_path_url.scheme == "":
-        file_path_url = file_path_url._replace(scheme="file://")
-
-    base_url = file_path_url._replace(path=str(pathlib.Path(file_path_url.path).parent))
-    link = str(pathlib.Path(file_path_url.path).name)
-
-    cwl, base_url = load_linked_file(base_url=base_url, link=link, is_import=True)
-    cwl = pack_process(cwl, base_url)
+    cwl = pack(cwl_path)
     # fast_yaml.dump(cwl, sys.stdout)
 
     api = get_profile(profile)

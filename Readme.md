@@ -8,9 +8,10 @@ Usage
    sbpack <profile> <id> <cwl>
  
 where:
- <profile> refers to a SB platform profile as set in the SB API credentials file.
- <id> takes the form {user}/{project}/{app_id} which installs (or updates) the app id located in project of user.
- <cwl> is the path to the main CWL file. This can be a remote file.
+  <profile> refers to a SB platform profile as set in the SB API credentials file.
+  <id> takes the form {user}/{project}/{app_id} which installs (or updates) 
+       "app_id" located in "project" of "user".
+  <cwl> is the path to the main CWL file to be uploaded. This can be a remote file.
 ```
  
 ## Uploading workflows defined remotely
