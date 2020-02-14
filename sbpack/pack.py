@@ -20,17 +20,18 @@ from ruamel.yaml import YAML
 import sevenbridges as sbg
 import sevenbridges.errors as sbgerr
 
+from .version import __version__
+
 import logging
 logger = logging.getLogger(__name__)
 
-
 fast_yaml = YAML(typ='safe')
-__version__ = "2020.1.31"
 
 
 def pack_process(cwl: dict, base_url: urllib.parse.ParseResult):
-    resolve_imports(cwl, base_url)
-    resolve_linked_processes(cwl, base_url)
+    cwl = resolve_imports(cwl, base_url)
+    cwl = resolve_linked_processes(cwl, base_url)
+    return cwl
 
 
 def resolve_imports(cwl: dict, base_url: urllib.parse.ParseResult):
@@ -48,13 +49,27 @@ def resolve_imports(cwl: dict, base_url: urllib.parse.ParseResult):
                 if _k in ["$import", "$include"]:
                     cwl[k], this_base_url = load_linked_file(base_url, v[_k], is_import=_k == "$import")
 
-        resolve_imports(cwl[k], base_url)
+        cwl[k] = resolve_imports(cwl[k], base_url)
+
+    return cwl
 
 
 def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult):
 
+    if isinstance(cwl, str):
+        # This is an exception for symbolic links.
+        logger.warning(base_url.geturl())
+        logger.warning(cwl)
+        logger.warning("Expecting a process, found a string. Treating this as a symbolic link.")
+        cwl, this_base_url = load_linked_file(base_url, cwl, is_import=True)
+        cwl = pack_process(cwl, this_base_url)
+        return cwl
+
+    if not isinstance(cwl, dict):
+        return cwl
+
     if cwl.get("class") != "Workflow":
-        return
+        return cwl
 
     steps = cwl.get("steps")
     if isinstance(steps, dict):
@@ -62,7 +77,7 @@ def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult):
     elif isinstance(steps, list):
         itr = [(n, v) for n, v in enumerate(steps)]
     else:
-        return
+        return cwl
 
     for k, v in itr:
         if isinstance(v, dict):
@@ -72,7 +87,9 @@ def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult):
             else:
                 this_base_url = base_url
 
-            pack_process(v["run"], this_base_url)
+            v["run"] = pack_process(v["run"], this_base_url)
+
+    return cwl
 
 
 def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=False):
@@ -119,6 +136,9 @@ def print_usage():
 
 def main():
 
+    logger.setLevel(logging.INFO)
+    logger.info(f"sbpack {__version__}")
+
     if len(sys.argv) != 4:
         print_usage()
         exit(0)
@@ -137,7 +157,7 @@ def main():
     link = str(pathlib.Path(file_path_url.path).name)
 
     cwl, base_url = load_linked_file(base_url=base_url, link=link, is_import=True)
-    pack_process(cwl, base_url)
+    cwl = pack_process(cwl, base_url)
     # fast_yaml.dump(cwl, sys.stdout)
 
     api = get_profile(profile)

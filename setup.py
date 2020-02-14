@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 current_path = pathlib.Path(__file__).parent
 
 name = "sbpack"
-version = "2020.1.31"
+version = open("sbpack/version.py").read().split("=")[1].strip().strip("\"")
 now = datetime.utcnow()
 desc_path = pathlib.Path(current_path, "Readme.md")
 long_description = desc_path.open("r").read()
