@@ -2,9 +2,23 @@
 
 ![](https://github.com/kaushik-work/sbpack/workflows/Tests/badge.svg)
 
-Packs a CWL workflow, resolving linked processes, includes and imports
-and uploads it to a project on the SB platform.
+Upload CWL apps to any Seven Bridges powered platform. Resolves linked processes, $includes and $imports.
 
+## Installation
+
+(It is good practice to install Python programs in a virtual environment. [pipx] is a very effective tool for
+ installing command line Python tools in isolated environments)
+
+[pipx]: (https://github.com/pipxproject/pipx)
+
+```
+pip3 install pipx  # in case you don't have pipx
+pipx ensurepath # ensures CLI application directory is on your $PATH
+pipx install --spec git+https://github.com/kaushik-work/sbpack.git sbpack
+# use pipx upgrade ... if upgrading an existing install
+```
+
+## Usage
 ```
 Usage
    sbpack <profile> <id> <cwl>
