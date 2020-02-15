@@ -2,14 +2,15 @@
 
 ![](https://github.com/kaushik-work/sbpack/workflows/Tests/badge.svg)
 
-Upload CWL apps to any Seven Bridges powered platform. Resolves linked processes, $includes and $imports.
+Upload CWL apps to any Seven Bridges powered platform. Resolves linked processes, schemadefs and `$include`s and
+ `$import`s.
 
 ## Installation
 
 (It is good practice to install Python programs in a virtual environment. [pipx] is a very effective tool for
  installing command line Python tools in isolated environments)
 
-[pipx]: (https://github.com/pipxproject/pipx)
+[pipx]: https://github.com/pipxproject/pipx
 
 ```
 pip3 install pipx  # in case you don't have pipx
