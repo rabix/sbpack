@@ -20,7 +20,7 @@ setup(
     python_requires='>=3.7.0',
     install_requires=[
         "ruamel.yaml >= 0.15.77",
-        "sevenbridges-python"
+        "sevenbridges-python >= 0.20.2"
     ],
     entry_points={
         'console_scripts': [
@@ -32,7 +32,7 @@ setup(
     maintainer='Seven Bridges',
     maintainer_email='kaushik.ghose@sbgenomics.com',
     author_email='kaushik.ghose@sbgenomics.com',
-    description='Command line tool to upload DocWithUrl documents to SB powered platforms.',
+    description='Command line tool to upload CWL documents to SB powered platforms.',
     long_description=long_description,
     long_description_content_type="text/markdown",
     include_package_data=True,

@@ -12,6 +12,8 @@ Upload CWL apps to any Seven Bridges powered platform. Resolves linked processes
 
 [pipx]: https://github.com/pipxproject/pipx
 
+`sbpack` needs Python 3.5 or later
+
 ```
 pip3 install pipx  # in case you don't have pipx
 pipx ensurepath # ensures CLI application directory is on your $PATH
