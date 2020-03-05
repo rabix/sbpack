@@ -1,0 +1,7 @@
+- name: my_boolean
+  type: boolean?
+  label: "An optional boolean"
+
+- name: my_string
+  type: string
+  label: "A required string"

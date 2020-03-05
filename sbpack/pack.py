@@ -28,9 +28,81 @@ logger = logging.getLogger(__name__)
 fast_yaml = YAML(typ='safe')
 
 
+def get_inner_dict(cwl: dict, path: list):
+    if len(path) == 0:
+        return cwl
+
+    if isinstance(cwl, dict):
+        _v = cwl.get(path[0]["key"])
+        if _v is not None:
+            return get_inner_dict(_v, path[1:])
+
+    elif isinstance(cwl, list): # Going to assume this is a map expressed as list
+        for _v in cwl:
+            if isinstance(_v, dict):
+                if _v.get(path[0]["key_field"]) == path[0]["key"]:
+                    return get_inner_dict(_v, path[1:])
+
+    return None
+
+
 def pack_process(cwl: dict, base_url: urllib.parse.ParseResult):
+    cwl = normalize_sources(cwl)
+    cwl = resolve_schemadefs(cwl, base_url)
     cwl = resolve_imports(cwl, base_url)
     cwl = resolve_linked_processes(cwl, base_url)
+    cwl = handle_user_defined_types(cwl, base_url)
+    return cwl
+
+
+def normalize_sources(cwl: dict):
+    if cwl.get("class") != "Workflow":
+        return cwl
+
+    _steps = cwl.get("steps")
+    if not isinstance(_steps, (list, dict)):
+        return cwl
+
+    for _step in (_steps.values() if isinstance(_steps, dict) else _steps):
+        if not isinstance(_step, dict):
+            continue
+
+        _inputs = _step.get("in")
+        if not isinstance(_step, (list, dict)):
+            continue
+
+        for k, _input in (_inputs.items() if isinstance(_inputs, dict) else enumerate(_inputs)):
+            if isinstance(_input, str):
+                _inputs[k] = _normalize(_input)
+            elif isinstance(_input, dict):
+                _src = _input.get("source")
+                if isinstance(_src, str):
+                    _input["source"] = _normalize(_input["source"])
+
+    _outputs = cwl.get("outputs")
+    for k, _output in (_outputs.items() if isinstance(_outputs, dict) else enumerate(_outputs)):
+        if isinstance(_output, str):
+            _outputs[k] = _normalize(_output)
+        elif isinstance(_output, dict):
+            _src = _output.get("outputSource")
+            if isinstance(_src, str):
+                _output["outputSource"] = _normalize(_output["outputSource"])
+
+    return cwl
+
+
+def _normalize(s):
+    if s.startswith("#"):
+        return s[1:]
+    else:
+        return s
+
+
+def resolve_schemadefs(cwl: dict, base_url: urllib.parse.ParseResult):
+    _req = cwl.get("requirements")
+    if _req is None or not isinstance(_req, (list, dict)):
+        return cwl
+
     return cwl
 
 
@@ -89,6 +161,16 @@ def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult):
 
             v["run"] = pack_process(v["run"], this_base_url)
 
+    return cwl
+
+
+# For now, this does not verify that you have correctly $import -ed the type file
+def handle_user_defined_types(cwl, base_url: urllib.parse.ParseResult):
+    if isinstance(cwl, dict):
+        for k in cwl.keys():
+            if k == "type":
+                if "#" in cwl[k]:
+                    pass
     return cwl
 
 
