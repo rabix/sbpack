@@ -24,7 +24,8 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'sbpack = sbpack.pack:main'
+            'sbpack = sbpack.pack:main',
+            'cwlpack = sbpack.pack:localpack'
         ],
     },
 

@@ -318,20 +318,6 @@ def pack(cwl_path: str):
     return cwl
 
 
-# def handle_hash_in_source(cwl):
-#     if isinstance(cwl, dict):
-#         for k in cwl.keys():
-#             if k in ["source", "outputSource"]:
-#                 if cwl[k][0] == "#":
-#                     cwl[k] = cwl[k][1:]
-#             else:
-#                 handle_hash_in_source(cwl[k])
-#
-#     elif isinstance(cwl, list):
-#         for l in cwl:
-#             handle_hash_in_source(l)
-
-
 def main():
 
     logging.basicConfig()
@@ -351,7 +337,6 @@ def main():
         return
 
     cwl = pack(cwl_path)
-    # fast_yaml.dump(cwl, sys.stdout)
 
     api = get_profile(profile)
 
@@ -370,6 +355,26 @@ def main():
             id=appid,
             raw=cwl
         )
+
+
+def print_local_usage():
+    print(
+        """cwlpack <cwl>        
+        """, sys.stderr)
+
+
+def localpack():
+    logging.basicConfig()
+    logger.setLevel(logging.INFO)
+
+    if len(sys.argv) != 2:
+        print_local_usage()
+        exit(0)
+
+    cwl_path = sys.argv[1]
+
+    cwl = pack(cwl_path)
+    fast_yaml.dump(cwl, sys.stdout)
 
 
 if __name__ == "__main__":
