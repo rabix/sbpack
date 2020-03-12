@@ -4,7 +4,7 @@ class: CommandLineTool
 cwlVersion: v1.0
 inputs:
   in1:
-    type: ../types/testtypes.yml#my_boolean
+    type: ../types/testtypes.yml#my_boolean_array
     inputBinding:
       position: 1
       valueFrom: A_$(inputs.in1)_B_${return inputs.in1}_C_$(inputs.in1)
@@ -22,5 +22,5 @@ outputs:
 stdout: out.txt
 requirements:
   SchemaDefRequirement:
-    types:
+    types: 
       - $import: ../types/testtypes.yml

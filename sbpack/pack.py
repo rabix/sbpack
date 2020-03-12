@@ -51,7 +51,6 @@ def pack_process(cwl: dict, base_url: urllib.parse.ParseResult):
     cwl = resolve_schemadefs(cwl, base_url)
     cwl = resolve_imports(cwl, base_url)
     cwl = resolve_linked_processes(cwl, base_url)
-    cwl = handle_user_defined_types(cwl, base_url)
     return cwl
 
 
@@ -99,11 +98,102 @@ def _normalize(s):
 
 
 def resolve_schemadefs(cwl: dict, base_url: urllib.parse.ParseResult):
-    _req = cwl.get("requirements")
-    if _req is None or not isinstance(_req, (list, dict)):
-        return cwl
-
+    user_defined_types = build_user_defined_type_dict(cwl, base_url)
+    cwl["inputs"] = resolve_user_defined_types(cwl.get("inputs"), user_defined_types, base_url)
+    cwl["outputs"] = resolve_user_defined_types(cwl.get("outputs"), user_defined_types, base_url)
     return cwl
+
+
+def build_user_defined_type_dict(cwl: dict, base_url: urllib.parse.ParseResult):
+    _requirements = cwl.get("requirements")
+    if _requirements is None or not isinstance(_requirements, (list, dict)):
+        return {}
+
+    for k, req in (_requirements.items() if isinstance(_requirements, dict) else enumerate(_requirements)):
+        if isinstance(k, str) and k == "SchemaDefRequirement":
+            return _build_user_defined_type_dict(req, base_url)
+
+        if isinstance(k, int) and isinstance(req, dict) and req.get("class") == "SchemaDefRequirement":
+            return _build_user_defined_type_dict(req.get("types"), base_url)
+
+    return {}
+
+
+def _build_user_defined_type_dict(requirements: list, base_url: urllib.parse.ParseResult):
+    user_type_dict = {}
+
+    if isinstance(requirements, dict):
+        requirements = requirements.get("types")
+
+    if not isinstance(requirements, list):
+        return user_type_dict
+
+    for _req in requirements:
+        if not isinstance(_req, dict):
+            continue
+
+        if len(_req.keys()) == 1 and list(_req.keys())[0] == "$import":
+            _user_types, _ = load_linked_file(base_url, _req["$import"], is_import=True)
+            _this_type_dict = {}
+            for _user_type in (_user_types if isinstance(_user_types, list) else [_user_types]):
+                _name = _user_type.get("name")
+                if _name is None:
+                    logger.error(f"Missing name in {_req['$import']}")
+                    continue
+                _this_type_dict[_name] = _user_type
+
+            user_type_dict[_normalized_path(_req["$import"], base_url)] = _this_type_dict
+        else:
+            user_type_dict[_req.get("name")] = _req
+
+    return user_type_dict
+
+
+def resolve_user_defined_types(ports: dict, user_defined_types: dict, base_url: urllib.parse.ParseResult):
+    if ports is None:
+        return {}
+
+    for k, _inp in (ports.items() if isinstance(ports, dict) else enumerate(ports)):
+        if isinstance(_inp, dict) and "type" in _inp:
+            _inp["type"] = _resolve_type(_inp["type"], user_defined_types, base_url)
+
+        elif isinstance(_inp, str):
+            ports[k] = _resolve_type(_inp, user_defined_types, base_url)
+
+    return ports
+
+
+def _resolve_type(_type: str, user_defined_types: dict, base_url: urllib.parse.ParseResult):
+    if not isinstance(_type, str):
+        return _type
+
+    if "#" not in _type:
+        return _type
+
+    type_path, type_name = _type.split("#")
+
+    norm_type_path = _normalized_path(type_path, base_url)
+
+    if norm_type_path not in user_defined_types:
+        logger.error(f"Undefined type: {_type}")
+        return _type
+
+    if type_name not in user_defined_types[norm_type_path]:
+        logger.error(f"Undefined type: {_type}")
+        return _type
+
+    return user_defined_types[norm_type_path][type_name]
+
+
+def _normalized_path(link: str, base_url: urllib.parse.ParseResult):
+    link_url = urllib.parse.urlparse(link)
+    if link_url.scheme in ["file://", ""]:
+        new_url = base_url._replace(
+            path=str((pathlib.Path(base_url.path) / pathlib.Path(link)).resolve()))
+    else:
+        new_url = link_url
+
+    return new_url
 
 
 def resolve_imports(cwl: dict, base_url: urllib.parse.ParseResult):
@@ -161,16 +251,6 @@ def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult):
 
             v["run"] = pack_process(v["run"], this_base_url)
 
-    return cwl
-
-
-# For now, this does not verify that you have correctly $import -ed the type file
-def handle_user_defined_types(cwl, base_url: urllib.parse.ParseResult):
-    if isinstance(cwl, dict):
-        for k in cwl.keys():
-            if k == "type":
-                if "#" in cwl[k]:
-                    pass
     return cwl
 
 
@@ -238,18 +318,18 @@ def pack(cwl_path: str):
     return cwl
 
 
-def handle_hash_in_source(cwl):
-    if isinstance(cwl, dict):
-        for k in cwl.keys():
-            if k in ["source", "outputSource"]:
-                if cwl[k][0] == "#":
-                    cwl[k] = cwl[k][1:]
-            else:
-                handle_hash_in_source(cwl[k])
-
-    elif isinstance(cwl, list):
-        for l in cwl:
-            handle_hash_in_source(l)
+# def handle_hash_in_source(cwl):
+#     if isinstance(cwl, dict):
+#         for k in cwl.keys():
+#             if k in ["source", "outputSource"]:
+#                 if cwl[k][0] == "#":
+#                     cwl[k] = cwl[k][1:]
+#             else:
+#                 handle_hash_in_source(cwl[k])
+#
+#     elif isinstance(cwl, list):
+#         for l in cwl:
+#             handle_hash_in_source(l)
 
 
 def main():
@@ -271,7 +351,6 @@ def main():
         return
 
     cwl = pack(cwl_path)
-    handle_hash_in_source(cwl)
     # fast_yaml.dump(cwl, sys.stdout)
 
     api = get_profile(profile)

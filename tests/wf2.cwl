@@ -1,7 +1,9 @@
 class: Workflow
 cwlVersion: v1.0
 inputs:
-  in1: types/testtypes.yml#my_boolean
+  in1: types/testtypes.yml#my_boolean_array
+  in2: 
+    type: types/testtypes.yml#my_enum
 
 steps:
   s1:

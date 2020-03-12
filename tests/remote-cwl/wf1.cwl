@@ -1,7 +1,8 @@
 class: Workflow
 cwlVersion: v1.0
 inputs:
-  in1: testtypes.yml#my_boolean
+  - id: in1
+    type: ../types/testtypes.yml#my_boolean_array
 
 steps:
   s1:
@@ -23,4 +24,4 @@ outputs:
 requirements:
   SchemaDefRequirement:
     types:
-      - $import: testtypes.yml
+      - $import: ../types/testtypes.yml

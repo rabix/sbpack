@@ -21,5 +21,15 @@ def test_include():
     assert "engineers walk into a" in include_js
 
 
-def test_import():
-    pass
+def test_schema_def1():
+    cwl = pack("remote-cwl/tool2.cwl")
+    _type = cwl.get("inputs").get("in1").get("type")
+    assert isinstance(_type, dict)
+    assert _type.get("type") == "array"
+
+
+def test_schema_def2():
+    cwl = pack("wf2.cwl")
+    _type = cwl.get("inputs").get("in2").get("type")
+    assert isinstance(_type, dict)
+    assert _type.get("type") == "enum"
