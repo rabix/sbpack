@@ -99,6 +99,7 @@ def _normalize(s):
 
 def resolve_schemadefs(cwl: dict, base_url: urllib.parse.ParseResult):
     user_defined_types = build_user_defined_type_dict(cwl, base_url)
+    cwl = _remove_schemadef(cwl)
     cwl["inputs"] = resolve_user_defined_types(cwl.get("inputs"), user_defined_types, base_url)
     cwl["outputs"] = resolve_user_defined_types(cwl.get("outputs"), user_defined_types, base_url)
     return cwl
@@ -182,7 +183,28 @@ def _resolve_type(_type: str, user_defined_types: dict, base_url: urllib.parse.P
         logger.error(f"Undefined type: {_type}")
         return _type
 
-    return user_defined_types[norm_type_path][type_name]
+    return {"type": user_defined_types[norm_type_path][type_name]}
+
+
+def _remove_schemadef(cwl: dict):
+    _requirements = cwl.get("requirements")
+    if _requirements is None or not isinstance(_requirements, (list, dict)):
+        return cwl
+
+    if isinstance(_requirements, list):
+        new_requirements = {
+            _req.get("class"): _req
+            for _req in _requirements
+            if _req.get("class") != "SchemaDefRequirement"
+        }
+    else:
+        new_requirements = {
+            k: _req
+            for k, _req in _requirements.items()
+            if k != "SchemaDefRequirement"
+        }
+    cwl["requirements"] = new_requirements
+    return cwl
 
 
 def _normalized_path(link: str, base_url: urllib.parse.ParseResult):
