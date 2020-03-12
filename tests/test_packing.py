@@ -47,7 +47,10 @@ def test_step_packing():
 def test_remote_packing():
     cwl = pack("https://raw.githubusercontent.com/kaushik-work/sbpack/master/tests/wf2.cwl")
     s1 = cwl.get("steps").get("s1")
-    tool2 = s1.get("run")
+    wf1 = s1.get("run")
+    assert wf1.get("class") == "Workflow"
+
+    tool2 = wf1.get("steps").get("s1").get("run")
     _type = tool2.get("inputs").get("in1").get("type")
     assert isinstance(_type, dict)
     assert _type.get("type") == "array"
