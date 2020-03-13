@@ -21,6 +21,6 @@ outputs:
 
 stdout: out.txt
 requirements:
-  InlineJavascriptRequirement: {
-    $include: ../lib.js
-  }
+  InlineJavascriptRequirement:
+    expressionLib:
+      - $include: ../lib.js
