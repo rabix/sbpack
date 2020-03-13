@@ -15,10 +15,10 @@ def test_include():
     assert "arguments" in cwl
     assert isinstance(cwl.get("arguments"), list)
 
-    include_js = cwl.get("requirements").get("InlineJavascriptRequirement")
+    include_js = cwl.get("requirements").get("InlineJavascriptRequirement").get("expressionLib")
 
-    assert isinstance(include_js, str)
-    assert "engineers walk into a" in include_js
+    assert isinstance(include_js, list)
+    assert "engineers walk into a" in include_js[0]
 
 
 def test_schema_def1():
