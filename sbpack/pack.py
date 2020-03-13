@@ -47,10 +47,32 @@ def get_inner_dict(cwl: dict, path: list):
 
 
 def pack_process(cwl: dict, base_url: urllib.parse.ParseResult):
+    cwl = dictify_requirements(cwl)
     cwl = normalize_sources(cwl)
     cwl = resolve_schemadefs(cwl, base_url)
     cwl = resolve_imports(cwl, base_url)
     cwl = resolve_linked_processes(cwl, base_url)
+    cwl = add_missing_requirements(cwl)
+    return cwl
+
+
+def dictify_requirements(cwl: dict):
+    _requirements = cwl.get("requirements")
+    if _requirements is None or not isinstance(_requirements, (list, dict)):
+        return cwl
+
+    if isinstance(_requirements, list):
+        new_requirements = {
+            _req.get("class"): _req
+            for _req in _requirements
+            if _req.get("class") is not None
+        }
+    else:
+        new_requirements = {
+            k: _req
+            for k, _req in _requirements.items()
+        }
+    cwl["requirements"] = new_requirements
     return cwl
 
 
@@ -110,12 +132,9 @@ def build_user_defined_type_dict(cwl: dict, base_url: urllib.parse.ParseResult):
     if _requirements is None or not isinstance(_requirements, (list, dict)):
         return {}
 
-    for k, req in (_requirements.items() if isinstance(_requirements, dict) else enumerate(_requirements)):
-        if isinstance(k, str) and k == "SchemaDefRequirement":
+    for k, req in _requirements.items():
+        if k == "SchemaDefRequirement":
             return _build_user_defined_type_dict(req, base_url)
-
-        if isinstance(k, int) and isinstance(req, dict) and req.get("class") == "SchemaDefRequirement":
-            return _build_user_defined_type_dict(req.get("types"), base_url)
 
     return {}
 
@@ -191,19 +210,11 @@ def _remove_schemadef(cwl: dict):
     if _requirements is None or not isinstance(_requirements, (list, dict)):
         return cwl
 
-    if isinstance(_requirements, list):
-        new_requirements = {
-            _req.get("class"): _req
-            for _req in _requirements
-            if _req.get("class") != "SchemaDefRequirement"
-        }
-    else:
-        new_requirements = {
+    cwl["requirements"] = {
             k: _req
             for k, _req in _requirements.items()
             if k != "SchemaDefRequirement"
-        }
-    cwl["requirements"] = new_requirements
+    }
     return cwl
 
 
@@ -296,6 +307,19 @@ def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=Fa
         _node = contents
 
     return _node, new_base_url
+
+
+def add_missing_requirements(cwl: dict):
+
+    def _add_req(_req_name: str):
+        if _req_name not in _requirements:
+            _requirements[_req_name] = {}
+
+    _requirements = cwl.get("requirements", {})
+    if cwl.get("class") == "Workflow":
+        _add_req("SubworkflowFeatureRequirement")
+    _add_req("InlineJavascriptRequirement")
+    return cwl
 
 
 def get_profile(profile):
