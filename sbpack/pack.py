@@ -159,7 +159,7 @@ def resolve_user_defined_types(ports: dict, user_defined_types: dict, base_url: 
             _inp["type"] = _resolve_type(_inp["type"], user_defined_types, base_url)
 
         elif isinstance(_inp, str):
-            ports[k] = _resolve_type(_inp, user_defined_types, base_url)
+            ports[k] = {"type": _resolve_type(_inp, user_defined_types, base_url)}
 
     return ports
 
@@ -183,7 +183,7 @@ def _resolve_type(_type: str, user_defined_types: dict, base_url: urllib.parse.P
         logger.error(f"Undefined type: {_type}")
         return _type
 
-    return {"type": user_defined_types[norm_type_path][type_name]}
+    return user_defined_types[norm_type_path][type_name]
 
 
 def _remove_schemadef(cwl: dict):
