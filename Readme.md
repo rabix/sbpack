@@ -47,6 +47,16 @@ go to the `raw` button and use that URL, like:
 sbpack sbg kghosesbg/sbpla-31744/ATAC-seq-pipeline-se https://raw.githubusercontent.com/Duke-GCB/GGR-cwl/master/v1.0/ATAC-seq_pipeline/pipeline-se.cwl
 ``` 
 
+## Local packing
+```
+Usage
+    cwlpack <cwl> > packed.cwl
+```
+
+The `cwlpack` utility allows you to pack a workflow and print it out on `stdout` instead of 
+uploading it to a SB platform.
+
+
 ## Credentials file and profiles
 
 If you use the SBG API you already have an API configuration file. If
