@@ -1,6 +1,6 @@
 # sbpack
 
-![](https://github.com/kaushik-work/sbpack/workflows/Tests/badge.svg)
+![](https://github.com/rabix/sbpack/workflows/Tests/badge.svg)
 
 Upload CWL apps to any Seven Bridges powered platform. Resolves linked processes, schemadefs and `$include`s and
  `$import`s.
