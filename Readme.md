@@ -17,7 +17,7 @@ Upload CWL apps to any Seven Bridges powered platform. Resolves linked processes
 ```
 pip3 install pipx  # in case you don't have pipx
 pipx ensurepath # ensures CLI application directory is on your $PATH
-pipx install --spec git+https://github.com/kaushik-work/sbpack.git sbpack
+pipx install git+https://github.com/kaushik-work/sbpack.git
 # use pipx upgrade ... if upgrading an existing install
 ```
 
@@ -61,7 +61,9 @@ uploading it to a SB platform.
 
 If you use the SBG API you already have an API configuration file. If
 not, you should create one. It is located in 
-`~/.sevenbridges/credentials`.
+`~/.sevenbridges/credentials`. [Documentation](cred-doc)
+
+[cred-doc]: https://docs.sevenbridges.com/docs/store-credentials-to-access-seven-bridges-client-applications-and-libraries
 
 Briefly, each section in the SBG configuration file (e.g. `[cgc]`) is a 
 profile name and has two entries. The end-point and an authentication
@@ -86,6 +88,10 @@ auth_token   = <dev token here>
 
 [cavatica]
 api_endpoint = https://cavatica-api.sbgenomics.com/v2
+auth_token   = <dev token here>
+
+[nhlbi]
+api_endpoint = https://api.sb.biodatacatalyst.nhlbi.nih.gov/v2
 auth_token   = <dev token here>
 ```
 
