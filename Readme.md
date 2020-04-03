@@ -61,7 +61,7 @@ uploading it to a SB platform.
 
 If you use the SBG API you already have an API configuration file. If
 not, you should create one. It is located in 
-`~/.sevenbridges/credentials`. [Documentation](cred-doc)
+`~/.sevenbridges/credentials`. ([Documentation][cred-doc])
 
 [cred-doc]: https://docs.sevenbridges.com/docs/store-credentials-to-access-seven-bridges-client-applications-and-libraries
 
