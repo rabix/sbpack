@@ -1,6 +1,7 @@
 # sbpack
 
 ![](https://github.com/rabix/sbpack/workflows/Tests/badge.svg)
+[![PyPI version](https://badge.fury.io/py/sbpack.svg)](https://pypi.org/project/sbpack/)
 
 Upload CWL apps to any Seven Bridges powered platform. Resolves linked processes, schemadefs and `$include`s and
  `$import`s.
