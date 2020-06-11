@@ -13,12 +13,17 @@ import sys
 import pathlib
 import urllib.parse
 import urllib.request
+from typing import Union
+from copy import deepcopy
 import json
 
 from ruamel.yaml import YAML
 
 import sevenbridges as sbg
 import sevenbridges.errors as sbgerr
+
+import sbpack.schemadef as schemadef
+import sbpack.lib as lib
 
 from .version import __version__
 
@@ -47,30 +52,19 @@ def get_inner_dict(cwl: dict, path: list):
     return None
 
 
-def pack_process(cwl: dict, base_url: urllib.parse.ParseResult):
+def pack_process(cwl: dict, base_url: urllib.parse.ParseResult, link: str):
+    sys.stderr.write(f"\n--\nPacking {link}\n")
     cwl = dictify_requirements(cwl)
     cwl = normalize_sources(cwl)
-    cwl = resolve_schemadefs(cwl, base_url)
+    cwl = resolve_schemadefs(cwl, base_url, link)
     cwl = resolve_imports(cwl, base_url)
-    cwl = resolve_linked_processes(cwl, base_url)
+    cwl = resolve_linked_processes(cwl, base_url, link)
     cwl = add_missing_requirements(cwl)
     return cwl
 
 
 def dictify_requirements(cwl: dict):
-    _requirements = cwl.get("requirements")
-    if _requirements is None or not isinstance(_requirements, (list, dict)):
-        return cwl
-
-    if isinstance(_requirements, list):
-        new_requirements = {
-            _req.get("class"): _req
-            for _req in _requirements
-            if _req.get("class") is not None
-        }
-    else:
-        new_requirements = {k: _req for k, _req in _requirements.items()}
-    cwl["requirements"] = new_requirements
+    cwl["requirements"] = lib.normalize_to_map(cwl.get("requirements", {}), key_field="class")
     return cwl
 
 
@@ -121,114 +115,11 @@ def _normalize(s):
         return s
 
 
-def resolve_schemadefs(cwl: dict, base_url: urllib.parse.ParseResult):
-    user_defined_types = build_user_defined_type_dict(cwl, base_url)
-    cwl = _remove_schemadef(cwl)
-    cwl["inputs"] = resolve_user_defined_types(
-        cwl.get("inputs"), user_defined_types, base_url
-    )
-    cwl["outputs"] = resolve_user_defined_types(
-        cwl.get("outputs"), user_defined_types, base_url
-    )
-    return cwl
-
-
-def build_user_defined_type_dict(cwl: dict, base_url: urllib.parse.ParseResult):
-    _requirements = cwl.get("requirements")
-    if _requirements is None or not isinstance(_requirements, (list, dict)):
-        return {}
-
-    for k, req in _requirements.items():
-        if k == "SchemaDefRequirement":
-            return _build_user_defined_type_dict(req, base_url)
-
-    return {}
-
-
-def _build_user_defined_type_dict(
-    requirements: list, base_url: urllib.parse.ParseResult
-):
-    user_type_dict = {}
-
-    if isinstance(requirements, dict):
-        requirements = requirements.get("types")
-
-    if not isinstance(requirements, list):
-        return user_type_dict
-
-    for _req in requirements:
-        if not isinstance(_req, dict):
-            continue
-
-        if len(_req.keys()) == 1 and list(_req.keys())[0] == "$import":
-            _user_types, _ = load_linked_file(base_url, _req["$import"], is_import=True)
-            _this_type_dict = {}
-            for _user_type in (
-                _user_types if isinstance(_user_types, list) else [_user_types]
-            ):
-                _name = _user_type.get("name")
-                if _name is None:
-                    logger.error(f"Missing name in {_req['$import']}")
-                    continue
-                _this_type_dict[_name] = _user_type
-
-            user_type_dict[
-                _normalized_path(_req["$import"], base_url)
-            ] = _this_type_dict
-        else:
-            user_type_dict[_req.get("name")] = _req
-
-    return user_type_dict
-
-
-def resolve_user_defined_types(
-    ports: dict, user_defined_types: dict, base_url: urllib.parse.ParseResult
-):
-    if ports is None:
-        return {}
-
-    for k, _inp in ports.items() if isinstance(ports, dict) else enumerate(ports):
-        if isinstance(_inp, dict) and "type" in _inp:
-            _inp["type"] = _resolve_type(_inp["type"], user_defined_types, base_url)
-
-        elif isinstance(_inp, str):
-            ports[k] = {"type": _resolve_type(_inp, user_defined_types, base_url)}
-
-    return ports
-
-
-def _resolve_type(
-    _type: str, user_defined_types: dict, base_url: urllib.parse.ParseResult
-):
-    if not isinstance(_type, str):
-        return _type
-
-    if "#" not in _type:
-        return _type
-
-    type_path, type_name = _type.split("#")
-
-    norm_type_path = _normalized_path(type_path, base_url)
-
-    if norm_type_path not in user_defined_types:
-        logger.error(f"Undefined type: {_type}")
-        return _type
-
-    if type_name not in user_defined_types[norm_type_path]:
-        logger.error(f"Undefined type: {_type}")
-        return _type
-
-    return user_defined_types[norm_type_path][type_name]
-
-
-def _remove_schemadef(cwl: dict):
-    _requirements = cwl.get("requirements")
-    if _requirements is None or not isinstance(_requirements, (list, dict)):
-        return cwl
-
-    cwl["requirements"] = {
-        k: _req for k, _req in _requirements.items() if k != "SchemaDefRequirement"
-    }
+def resolve_schemadefs(cwl: dict, base_url: urllib.parse.ParseResult, link: str):
+    user_defined_types = schemadef.build_user_defined_type_dict(cwl, base_url, link)
+    cwl.get("requirements", {}).pop("SchemaDefRequirement", None)
+    cwl = schemadef.inline_types(cwl, "inputs", base_url, user_defined_types, link)
+    cwl = schemadef.inline_types(cwl, "outputs", base_url, user_defined_types, link)
     return cwl
 
 
@@ -257,7 +148,7 @@ def resolve_imports(cwl: dict, base_url: urllib.parse.ParseResult):
             if len(v) == 1:
                 _k = list(v.keys())[0]
                 if _k in ["$import", "$include"]:
-                    cwl[k], this_base_url = load_linked_file(
+                    cwl[k], this_base_url, _ = lib.load_linked_file(
                         base_url, v[_k], is_import=_k == "$import"
                     )
 
@@ -266,17 +157,17 @@ def resolve_imports(cwl: dict, base_url: urllib.parse.ParseResult):
     return cwl
 
 
-def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult):
+def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult, this_link: str):
 
     if isinstance(cwl, str):
-        # This is an exception for symbolic links.
+        # This is an exception for symbolic links on github
         logger.warning(base_url.geturl())
         logger.warning(cwl)
         logger.warning(
             "Expecting a process, found a string. Treating this as a symbolic link."
         )
-        cwl, this_base_url = load_linked_file(base_url, cwl, is_import=True)
-        cwl = pack_process(cwl, this_base_url)
+        cwl, this_base_url, this_full_url = lib.load_linked_file(base_url, cwl, is_import=True)
+        cwl = pack_process(cwl, this_base_url, this_full_url.geturl())
         return cwl
 
     if not isinstance(cwl, dict):
@@ -297,38 +188,17 @@ def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult):
         if isinstance(v, dict):
             _run = v.get("run")
             if isinstance(_run, str):
-                v["run"], this_base_url = load_linked_file(
+                v["run"], this_base_url, this_full_url = lib.load_linked_file(
                     base_url, _run, is_import=True
                 )
+                step_link = this_full_url.geturl()
             else:
                 this_base_url = base_url
+                step_link = this_link
 
-            v["run"] = pack_process(v["run"], this_base_url)
+            v["run"] = pack_process(v["run"], this_base_url, step_link)
 
     return cwl
-
-
-def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=False):
-
-    link_url = urllib.parse.urlparse(link)
-    if link_url.scheme in ["file://", ""]:
-        new_url = base_url._replace(
-            path=str((pathlib.Path(base_url.path) / pathlib.Path(link)).resolve())
-        )
-
-    else:
-        new_url = link_url
-
-    contents = urllib.request.urlopen(new_url.geturl()).read().decode("utf-8")
-    new_base_url = new_url._replace(path=str(pathlib.Path(new_url.path).parent))
-
-    if is_import:
-        _node = fast_yaml.load(contents)
-
-    else:
-        _node = contents
-
-    return _node, new_base_url
 
 
 def add_missing_requirements(cwl: dict):
@@ -419,6 +289,7 @@ where:
 
 
 def pack(cwl_path: str):
+    sys.stderr.write(f"Packing {cwl_path}\n")
     file_path_url = urllib.parse.urlparse(cwl_path)
     if file_path_url.scheme == "":
         file_path_url = file_path_url._replace(scheme="file://")
@@ -426,8 +297,8 @@ def pack(cwl_path: str):
     base_url = file_path_url._replace(path=str(pathlib.Path(file_path_url.path).parent))
     link = str(pathlib.Path(file_path_url.path).name)
 
-    cwl, base_url = load_linked_file(base_url=base_url, link=link, is_import=True)
-    cwl = pack_process(cwl, base_url)
+    cwl, base_url, full_url = lib.load_linked_file(base_url=base_url, link=link, is_import=True)
+    cwl = pack_process(cwl, base_url, link)
     return cwl
 
 
@@ -468,11 +339,9 @@ def main():
 
 
 def print_local_usage():
-    print(
+    sys.stderr.write(
         """cwlpack <cwl>        
-        """,
-        sys.stderr,
-    )
+        """)
 
 
 def localpack():
