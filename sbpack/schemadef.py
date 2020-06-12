@@ -67,20 +67,6 @@ def inline_types(cwl: dict, port: str, base_url: urllib.parse.ParseResult, user_
     return cwl
 
 
-# # Depending on how the original code is written we can have redundant "type" declarations
-# def remove_redundant_type(_type):
-#     if not isinstance(_type, dict):
-#         return _type
-#
-#     if len(_type.keys()) == 1:
-#         if "type" in _type:
-#             return _type.get("type") #remove_redundant_type(_type.get("type"))
-#         else:
-#             raise RuntimeError(f"Type error {_type}")
-#     else:
-#         return _type
-
-
 def _inline_type(v, base_url, user_defined_types, link):
     try:
         _inline_type.type_name_uniq_id += 1
@@ -143,7 +129,7 @@ def _inline_type(v, base_url, user_defined_types, link):
             return v
 
         elif _type in sbpack.lib.built_in_types:
-            return _type
+            return v
 
         else:
             v["type"] = _inline_type(_type, base_url, user_defined_types, link)
@@ -161,38 +147,3 @@ def add_type_if_needed(_type):
         return {"type": _type}
     else:
         return _type
-
-# def _wrap_with_type(_type):
-#     if isinstance(_type, dict):
-#         if "type" not in _type:
-#             raise RuntimeError(f"Type dict {_type} is missing 'type' field")
-#
-#         if _type.get("type") in sbpack.lib.built_in_types:
-#             return _type.get("type")
-#         else:
-#             return {"type": _type}
-#
-#     else:
-#         return _type
-
-
-def rename_all_types(cwl, key=None):
-    try:
-        rename_all_types.type_name_uniq_id += 1
-    except AttributeError:
-        rename_all_types.type_name_uniq_id = 1
-
-    if isinstance(cwl, str):
-        if key == "name" and cwl == magic_string:
-            return f"user_type_{rename_all_types.type_name_uniq_id}"
-        else:
-            return cwl
-
-    elif isinstance(cwl, dict):
-        return {k: rename_all_types(v, k) for k, v in cwl.items()}
-
-    elif isinstance(cwl, list):
-        return [rename_all_types(v) for v in cwl]
-
-    else:
-        return cwl
