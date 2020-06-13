@@ -58,6 +58,18 @@ The `cwlpack` utility allows you to pack a workflow and print it out on `stdout`
 uploading it to a SB platform.
 
 
+## Pulling (and unpacking)
+`sbpull` will retrieve CWL from any SB powered platform and save it to local disk. 
+With the `--unpack` option set, it will also explode the workflow recursively, extracting out each
+sub-process into its own file. 
+
+
+## Note on reversibility
+**`sbpack` and `sbpull --unpack` are not textually reversible. The packed and unpacked CWL 
+representations are functionally identical, however if you `sbpack` a workflow, and 
+then `sbpull --unpack` it, they will look different.
+
+
 ## Credentials file and profiles
 
 If you use the SBG API you already have an API configuration file. If

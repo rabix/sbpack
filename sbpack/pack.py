@@ -256,15 +256,6 @@ def get_git_info(cwl_path: str) -> str:
     return source_str
 
 
-def get_profile(profile):
-    api = sbg.Api(config=sbg.Config(profile))
-    # Least disruptive way to add in our user agent
-    api.headers["User-Agent"] = "sbpack/{} via {}".format(
-        __version__, api.headers["User-Agent"]
-    )
-    return api
-
-
 def validate_id(app_id: str):
     parts = app_id.split("/")
     if len(parts) != 3:
@@ -324,7 +315,7 @@ def main():
 
     cwl = pack(cwl_path)
 
-    api = get_profile(profile)
+    api = lib.get_profile(profile)
 
     cwl[
         "sbg:revisionNotes"

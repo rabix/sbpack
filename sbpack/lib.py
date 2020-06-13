@@ -4,6 +4,11 @@ import urllib.parse
 import urllib.request
 import pathlib
 
+import sevenbridges as sbg
+import sevenbridges.errors as sbgerr
+
+from .version import __version__
+
 from ruamel.yaml import YAML
 fast_yaml = YAML(typ="safe")
 
@@ -83,3 +88,12 @@ def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=Fa
         _node = contents
 
     return _node, new_base_url, new_url
+
+
+def get_profile(profile):
+    api = sbg.Api(config=sbg.Config(profile))
+    # Least disruptive way to add in our user agent
+    api.headers["User-Agent"] = "sbpack/{} via {}".format(
+        __version__, api.headers["User-Agent"]
+    )
+    return api

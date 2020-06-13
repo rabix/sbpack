@@ -20,12 +20,14 @@ setup(
     python_requires='>=3.6',
     install_requires=[
         "ruamel.yaml >= 0.15.77",
-        "sevenbridges-python >= 0.20.2"
+        "sevenbridges-python >= 0.20.2",
+        "cwlformat"
     ],
     entry_points={
         'console_scripts': [
             'sbpack = sbpack.pack:main',
-            'cwlpack = sbpack.pack:localpack'
+            'cwlpack = sbpack.pack:localpack',
+            'sbpull = sbpack.unpack:main'
         ],
     },
 
