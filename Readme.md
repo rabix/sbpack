@@ -3,13 +3,13 @@
 ![](https://github.com/rabix/sbpack/workflows/Tests/badge.svg)
 [![PyPI version](https://badge.fury.io/py/sbpack.svg)](https://pypi.org/project/sbpack/)
 
-Upload CWL apps to any Seven Bridges powered platform. Resolves linked processes, schemadefs and `$include`s and
- `$import`s.
+Upload (`sbpack`) and download (`sbpull`) CWL apps to/from any Seven Bridges powered platform. 
+Resolves linked processes, schemadefs and `$include`s and `$import`s.
 
 ## Installation
 
-(It is good practice to install Python programs in a virtual environment. [pipx] is a very effective tool for
- installing command line Python tools in isolated environments)
+(It is good practice to install Python programs in a virtual environment. 
+[pipx] is a very effective tool for installing command line Python tools in isolated environments)
 
 [pipx]: https://github.com/pipxproject/pipx
 
@@ -18,7 +18,17 @@ Upload CWL apps to any Seven Bridges powered platform. Resolves linked processes
 ```
 pip3 install pipx  # in case you don't have pipx
 pipx ensurepath # ensures CLI application directory is on your $PATH
-pipx install git+https://github.com/kaushik-work/sbpack.git
+```
+
+### Install latest release on pypi
+```bash
+pipx install sbpack
+# or pipx upgrade
+```
+
+### Install latest (unreleased) code
+```
+pipx install git+https://github.com/rabix/sbpack.git
 # use pipx upgrade ... if upgrading an existing install
 ```
 
@@ -60,14 +70,40 @@ uploading it to a SB platform.
 
 ## Pulling (and unpacking)
 `sbpull` will retrieve CWL from any SB powered platform and save it to local disk. 
+
+```bash
+sbpull sbg admin/sbg-public-data/salmon-workflow-1-2-0/ salmon.cwl
+```
+
 With the `--unpack` option set, it will also explode the workflow recursively, extracting out each
 sub-process into its own file. 
+
+```bash
+sbpull sbg admin/sbg-public-data/salmon-workflow-1-2-0/ salmon.cwl --unpack
+```
+
+> This is useful if you want to use SB platform CWL with your own workflows. You can pull the relevant
+CWL into your code repository and use it with the rest of your code. If you use the `--unpack` option 
+you can access the individual components of the SB CWL workflow separately.
+
+### Pulling a particular revision
+
+While
+```bash
+sbpull sbg admin/sbg-public-data/bismark-0-21-0/ bismark.cwl
+```
+will pull the latest version of Bismark on the platform,
+
+```bash
+sbpull sbg admin/sbg-public-data/bismark-0-21-0/2 bismark.cwl
+```
+will pull revision 2 of this tool
 
 
 ## Note on reversibility
 **`sbpack` and `sbpull --unpack` are not textually reversible. The packed and unpacked CWL 
 representations are functionally identical, however if you `sbpack` a workflow, and 
-then `sbpull --unpack` it, they will look different.
+then `sbpull --unpack` it, they will look different.**
 
 
 ## Credentials file and profiles

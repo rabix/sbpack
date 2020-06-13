@@ -36,6 +36,7 @@ def explode(cwl: CWLProcess) -> List[CWLProcess]:
     _processes = [cwl]
     _cwl = cwl.cwl
     if _cwl.get("class") == "Workflow":
+        sanitize_id(_cwl)
         _cwl_steps = _cwl.get("steps", {})
         _is_dict = isinstance(_cwl_steps, dict)
         for _k, _step in (_cwl_steps.items() if _is_dict else enumerate(_cwl_steps)):
@@ -51,6 +52,13 @@ def explode(cwl: CWLProcess) -> List[CWLProcess]:
                     _processes += explode(CWLProcess(_run, step_path))
 
     return _processes
+
+
+def sanitize_id(cwl: dict):
+    # cwltool bug: https://github.com/common-workflow-language/cwltool/issues/1280
+    if "id" in cwl:
+        cwl["sbg:original_source"] = cwl["id"]
+        cwl.pop("id")
 
 
 def main():
@@ -82,9 +90,6 @@ def main():
         sys.stderr.write(f"Saving {args.appid} to {fp_out}\n")
         fp_out.write_text(stringify_dict(as_dict))
         return 0
-
-    # cwltool bug: https://github.com/common-workflow-language/cwltool/issues/1280
-    as_dict["id"] = fp_out.name
 
     for n, exploded in enumerate(explode(CWLProcess(as_dict, fp_out))):
         sys.stderr.write(f"{n + 1}: {exploded.file_path.relative_to(fp_out.parent)}\n")
