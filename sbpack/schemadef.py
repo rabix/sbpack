@@ -63,7 +63,12 @@ def build_user_defined_type_dict(cwl: dict, base_url: urllib.parse.ParseResult, 
 def inline_types(cwl: dict, port: str, base_url: urllib.parse.ParseResult, user_defined_types: dict, link: str):
     cwl[port] = sbpack.lib.normalize_to_map(cwl.get(port, {}), key_field="id")
     for k, v in cwl[port].items():
-        cwl[port][k] = _inline_type(v, base_url, user_defined_types, link)
+        _inlined_type = _inline_type(v, base_url, user_defined_types, link)
+        if isinstance(v, str):
+            cwl[port][k] = {"type": _inlined_type}
+        else:
+            cwl[port][k] = _inlined_type
+
     return cwl
 
 
@@ -74,6 +79,19 @@ def _inline_type(v, base_url, user_defined_types, link):
         _inline_type.type_name_uniq_id = 1
 
     if isinstance(v, str):
+
+        # Handle syntactic sugar
+        if v.endswith("[]"):
+            return {
+                "type": "array",
+                "items": _inline_type(v[:-2], base_url, user_defined_types, link)
+            }
+
+        if v.endswith("?"):
+            return [
+                    "null",
+                    _inline_type(v[:-1], base_url, user_defined_types, link)
+            ]
 
         if v in sbpack.lib.built_in_types:
             return v

@@ -18,8 +18,7 @@ requirements:
     # - $import: ../types/singletype2.yml
 
 inputs:
-  in1:
-    type: ../types/recursive.yml#file_with_sample_meta
+  in1: ../types/recursive.yml#file_with_sample_meta
   in2:
     type: ../types/array.yml#study_meta_too
   in3:
