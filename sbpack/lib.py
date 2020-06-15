@@ -55,6 +55,23 @@ def normalize_to_map(obj: Union[list, dict], key_field: str):
         raise RuntimeError("Expecting a dictionary or a list here")
 
 
+def normalize_to_list(obj: Union[list, dict], key_field: str, value_field: str):
+    if isinstance(obj, list):
+        return deepcopy(obj)
+    elif isinstance(obj, dict):
+        map_list = []
+        for k, v in obj.items():
+            if isinstance(v, str):
+                if value_field is None:
+                    raise RuntimeError(f"Expecting a dict here, got {v}")
+                v = {value_field: v}
+            v.update({key_field: k})
+            map_list += [v]
+        return map_list
+    else:
+        raise RuntimeError("Expecting a dictionary or a list here")
+
+
 def normalized_path(link: str, base_url: urllib.parse.ParseResult):
     link_url = urllib.parse.urlparse(link)
     if link_url.scheme in ["file://", ""]:

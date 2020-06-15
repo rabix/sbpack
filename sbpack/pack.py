@@ -53,7 +53,6 @@ def get_inner_dict(cwl: dict, path: list):
 
 
 def pack_process(cwl: dict, base_url: urllib.parse.ParseResult, link: str):
-    sys.stderr.write(f"\n--\nPacking {link}\n")
     cwl = dictify_requirements(cwl)
     cwl = normalize_sources(cwl)
     cwl = resolve_schemadefs(cwl, base_url, link)
@@ -176,16 +175,11 @@ def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult, this
     if cwl.get("class") != "Workflow":
         return cwl
 
-    steps = cwl.get("steps")
-    if isinstance(steps, dict):
-        itr = steps.items()
-    elif isinstance(steps, list):
-        itr = [(n, v) for n, v in enumerate(steps)]
-    else:
-        return cwl
+    cwl["steps"] = lib.normalize_to_list(cwl.get("steps", []), key_field="id", value_field=None)
 
-    for k, v in itr:
+    for n, v in enumerate(cwl["steps"]):
         if isinstance(v, dict):
+            sys.stderr.write(f"\n--\nRecursing into step {this_link}:{v['id']}\n")
             _run = v.get("run")
             if isinstance(_run, str):
                 v["run"], this_base_url, this_full_url = lib.load_linked_file(
