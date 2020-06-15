@@ -68,6 +68,13 @@ The `cwlpack` utility allows you to pack a workflow and print it out on `stdout`
 uploading it to a SB platform.
 
 
+## Side-note
+As an interesting side note, packing a workflow can get around at least two `cwltool` bugs 
+[1][cwltoolbug1], [2][cwltoolbug2].
+[cwltoolbug1]: https://github.com/common-workflow-language/cwltool/issues/1304
+[cwltoolbug2]: https://github.com/common-workflow-language/cwltool/issues/1306
+
+
 ## Pulling (and unpacking)
 `sbpull` will retrieve CWL from any SB powered platform and save it to local disk. 
 

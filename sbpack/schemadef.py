@@ -19,8 +19,9 @@ import sbpack.lib
 def build_user_defined_type_dict(cwl: dict, base_url: urllib.parse.ParseResult, link: str):
     user_defined_types = {}
 
-    schema_list = sbpack.lib.normalize_to_map(cwl.get("requirements", {}), key_field="class").get(
-        "SchemaDefRequirement", {}).get("types", [])
+    schemadef = next((req for req in cwl.get("requirements", [])
+                      if req.get("class") == "SchemaDefRequirement"), {})
+    schema_list = schemadef.get("types", [])
 
     if not isinstance(schema_list, list):
         raise RuntimeError(f"In file {base_url.geturl()}: "
@@ -61,14 +62,7 @@ def build_user_defined_type_dict(cwl: dict, base_url: urllib.parse.ParseResult, 
 
 # port = "input" or "output"
 def inline_types(cwl: dict, port: str, base_url: urllib.parse.ParseResult, user_defined_types: dict, link: str):
-    cwl[port] = sbpack.lib.normalize_to_map(cwl.get(port, {}), key_field="id")
-    for k, v in cwl[port].items():
-        _inlined_type = _inline_type(v, base_url, user_defined_types, link)
-        if isinstance(v, str):
-            cwl[port][k] = {"type": _inlined_type}
-        else:
-            cwl[port][k] = _inlined_type
-
+    cwl[port] = [_inline_type(v, base_url, user_defined_types, link) for v in cwl[port]]
     return cwl
 
 
@@ -139,11 +133,11 @@ def _inline_type(v, base_url, user_defined_types, link):
                 raise sbpack.lib.RecordMissingFields(
                     f"In file {base_url.geturl()}, record type {_type.get('name')} is missing 'fields'")
 
-            fields = sbpack.lib.normalize_to_map(v["fields"], key_field="name")
-            v["fields"] = {
-                k: add_type_if_needed(_inline_type(_f, base_url, user_defined_types, link))
-                for k, _f in fields.items()
-            }
+            fields = sbpack.lib.normalize_to_list(v["fields"], key_field="name", value_field="type")
+            v["fields"] = [
+                _inline_type(_f, base_url, user_defined_types, link)
+                for _f in fields
+            ]
             return v
 
         elif _type in sbpack.lib.built_in_types:
@@ -155,13 +149,3 @@ def _inline_type(v, base_url, user_defined_types, link):
 
     else:
         raise RuntimeError("Found a type sbpack can not understand")
-
-
-def add_type_if_needed(_type):
-    if not isinstance(_type, dict):
-        return _type
-
-    if len(_type.keys()) > 1:
-        return {"type": _type}
-    else:
-        return _type

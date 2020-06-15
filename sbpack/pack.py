@@ -53,12 +53,31 @@ def get_inner_dict(cwl: dict, path: list):
 
 
 def pack_process(cwl: dict, base_url: urllib.parse.ParseResult, link: str):
-    cwl = dictify_requirements(cwl)
+    cwl = listify_everything(cwl)
+    # cwl = dictify_requirements(cwl)
     cwl = normalize_sources(cwl)
     cwl = resolve_schemadefs(cwl, base_url, link)
     cwl = resolve_imports(cwl, base_url)
     cwl = resolve_linked_processes(cwl, base_url, link)
     cwl = add_missing_requirements(cwl)
+    return cwl
+
+
+def listify_everything(cwl: dict):
+    for port in ["inputs", "outputs"]:
+        cwl[port] = lib.normalize_to_list(cwl.get(port, []), key_field="id", value_field="type")
+
+    cwl["requirements"] = lib.normalize_to_list(cwl.get("requirements", []), key_field="class", value_field=None)
+
+    if cwl.get("class") != "Workflow":
+        return cwl
+
+    cwl["steps"] = lib.normalize_to_list(cwl.get("steps", []), key_field="id", value_field=None)
+
+    for n, v in enumerate(cwl["steps"]):
+        if isinstance(v, dict):
+            v["in"] = lib.normalize_to_list(v.get("in", []), key_field="id", value_field="source")
+
     return cwl
 
 
@@ -71,21 +90,12 @@ def normalize_sources(cwl: dict):
     if cwl.get("class") != "Workflow":
         return cwl
 
-    _steps = cwl.get("steps")
-    if not isinstance(_steps, (list, dict)):
-        return cwl
-
-    for _step in _steps.values() if isinstance(_steps, dict) else _steps:
+    for _step in cwl.get("steps"):
         if not isinstance(_step, dict):
             continue
 
         _inputs = _step.get("in")
-        if not isinstance(_step, (list, dict)):
-            continue
-
-        for k, _input in (
-            _inputs.items() if isinstance(_inputs, dict) else enumerate(_inputs)
-        ):
+        for k, _input in enumerate(_inputs):
             if isinstance(_input, str):
                 _inputs[k] = _normalize(_input)
             elif isinstance(_input, dict):
@@ -94,9 +104,7 @@ def normalize_sources(cwl: dict):
                     _input["source"] = _normalize(_input["source"])
 
     _outputs = cwl.get("outputs")
-    for k, _output in (
-        _outputs.items() if isinstance(_outputs, dict) else enumerate(_outputs)
-    ):
+    for k, _output in enumerate(_outputs):
         if isinstance(_output, str):
             _outputs[k] = _normalize(_output)
         elif isinstance(_output, dict):
@@ -116,7 +124,8 @@ def _normalize(s):
 
 def resolve_schemadefs(cwl: dict, base_url: urllib.parse.ParseResult, link: str):
     user_defined_types = schemadef.build_user_defined_type_dict(cwl, base_url, link)
-    cwl.get("requirements", {}).pop("SchemaDefRequirement", None)
+    cwl["requirements"] = [req for req in cwl.get("requirements", [])
+                           if req.get("class") != "SchemaDefRequirement"]
     cwl = schemadef.inline_types(cwl, "inputs", base_url, user_defined_types, link)
     cwl = schemadef.inline_types(cwl, "outputs", base_url, user_defined_types, link)
     return cwl
@@ -175,11 +184,10 @@ def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult, this
     if cwl.get("class") != "Workflow":
         return cwl
 
-    cwl["steps"] = lib.normalize_to_list(cwl.get("steps", []), key_field="id", value_field=None)
-
     for n, v in enumerate(cwl["steps"]):
         if isinstance(v, dict):
             sys.stderr.write(f"\n--\nRecursing into step {this_link}:{v['id']}\n")
+
             _run = v.get("run")
             if isinstance(_run, str):
                 v["run"], this_base_url, this_full_url = lib.load_linked_file(
@@ -196,11 +204,16 @@ def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult, this
 
 
 def add_missing_requirements(cwl: dict):
-    def _add_req(_req_name: str):
-        if _req_name not in _requirements:
-            _requirements[_req_name] = {}
+    requirements = cwl.get("requirements", [])
+    present = set(req["class"] for req in requirements)
 
-    _requirements = cwl.get("requirements", {})
+    def _add_req(_req_name: str):
+        nonlocal requirements
+        if _req_name not in present:
+            requirements += [
+                {"class": _req_name}
+            ]
+
     if cwl.get("class") == "Workflow":
         _add_req("SubworkflowFeatureRequirement")
     _add_req("InlineJavascriptRequirement")
