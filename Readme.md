@@ -70,7 +70,8 @@ uploading it to a SB platform.
 
 ## Side-note
 As an interesting side note, packing a workflow can get around at least two `cwltool` bugs 
-[1][cwltoolbug1], [2][cwltoolbug2].
+[[1]][cwltoolbug1], [[2]][cwltoolbug2].
+
 [cwltoolbug1]: https://github.com/common-workflow-language/cwltool/issues/1304
 [cwltoolbug2]: https://github.com/common-workflow-language/cwltool/issues/1306
 

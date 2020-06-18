@@ -12,7 +12,7 @@ from sbpack.pack import pack
 fast_yaml = YAML(typ="safe")
 
 
-def validate(fname):
+def cwl_is_valid(fname):
     try:
         subprocess.run(["cwltool", "--validate", fname], check=True)
         return True
@@ -37,7 +37,7 @@ def test_local_packing_with_validation(f):
 
     cwl = pack(f)
     fpacked = pathlib.Path(packed_name)
-    with open(packed_name, "w") as fout:
+    with fpacked.open("w") as fout:
         fast_yaml.dump(cwl, fout)
-    assert validate(fpacked)
+    assert cwl_is_valid(fpacked)
     fpacked.unlink()
