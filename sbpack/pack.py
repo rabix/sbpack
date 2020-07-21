@@ -65,24 +65,34 @@ def pack_process(cwl: dict, base_url: urllib.parse.ParseResult, link: str):
 
 def listify_everything(cwl: dict):
     for port in ["inputs", "outputs"]:
-        cwl[port] = lib.normalize_to_list(cwl.get(port, []), key_field="id", value_field="type")
+        cwl[port] = lib.normalize_to_list(
+            cwl.get(port, []), key_field="id", value_field="type"
+        )
 
-    cwl["requirements"] = lib.normalize_to_list(cwl.get("requirements", []), key_field="class", value_field=None)
+    cwl["requirements"] = lib.normalize_to_list(
+        cwl.get("requirements", []), key_field="class", value_field=None
+    )
 
     if cwl.get("class") != "Workflow":
         return cwl
 
-    cwl["steps"] = lib.normalize_to_list(cwl.get("steps", []), key_field="id", value_field=None)
+    cwl["steps"] = lib.normalize_to_list(
+        cwl.get("steps", []), key_field="id", value_field=None
+    )
 
     for n, v in enumerate(cwl["steps"]):
         if isinstance(v, dict):
-            v["in"] = lib.normalize_to_list(v.get("in", []), key_field="id", value_field="source")
+            v["in"] = lib.normalize_to_list(
+                v.get("in", []), key_field="id", value_field="source"
+            )
 
     return cwl
 
 
 def dictify_requirements(cwl: dict):
-    cwl["requirements"] = lib.normalize_to_map(cwl.get("requirements", {}), key_field="class")
+    cwl["requirements"] = lib.normalize_to_map(
+        cwl.get("requirements", {}), key_field="class"
+    )
     return cwl
 
 
@@ -124,8 +134,11 @@ def _normalize(s):
 
 def resolve_schemadefs(cwl: dict, base_url: urllib.parse.ParseResult, link: str):
     user_defined_types = schemadef.build_user_defined_type_dict(cwl, base_url, link)
-    cwl["requirements"] = [req for req in cwl.get("requirements", [])
-                           if req.get("class") != "SchemaDefRequirement"]
+    cwl["requirements"] = [
+        req
+        for req in cwl.get("requirements", [])
+        if req.get("class") != "SchemaDefRequirement"
+    ]
     cwl = schemadef.inline_types(cwl, "inputs", base_url, user_defined_types, link)
     cwl = schemadef.inline_types(cwl, "outputs", base_url, user_defined_types, link)
     return cwl
@@ -165,7 +178,9 @@ def resolve_imports(cwl: dict, base_url: urllib.parse.ParseResult):
     return cwl
 
 
-def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult, this_link: str):
+def resolve_linked_processes(
+    cwl: dict, base_url: urllib.parse.ParseResult, this_link: str
+):
 
     if isinstance(cwl, str):
         # This is an exception for symbolic links on github
@@ -174,7 +189,9 @@ def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult, this
         logger.warning(
             "Expecting a process, found a string. Treating this as a symbolic link."
         )
-        cwl, this_base_url, this_full_url = lib.load_linked_file(base_url, cwl, is_import=True)
+        cwl, this_base_url, this_full_url = lib.load_linked_file(
+            base_url, cwl, is_import=True
+        )
         cwl = pack_process(cwl, this_base_url, this_full_url.geturl())
         return cwl
 
@@ -210,9 +227,7 @@ def add_missing_requirements(cwl: dict):
     def _add_req(_req_name: str):
         nonlocal requirements
         if _req_name not in present:
-            requirements += [
-                {"class": _req_name}
-            ]
+            requirements += [{"class": _req_name}]
 
     if cwl.get("class") == "Workflow":
         _add_req("SubworkflowFeatureRequirement")
@@ -295,7 +310,9 @@ def pack(cwl_path: str):
     base_url = file_path_url._replace(path=str(pathlib.Path(file_path_url.path).parent))
     link = str(pathlib.Path(file_path_url.path).name)
 
-    cwl, base_url, full_url = lib.load_linked_file(base_url=base_url, link=link, is_import=True)
+    cwl, base_url, full_url = lib.load_linked_file(
+        base_url=base_url, link=link, is_import=True
+    )
     cwl = pack_process(cwl, base_url, link)
     return cwl
 
@@ -339,7 +356,8 @@ def main():
 def print_local_usage():
     sys.stderr.write(
         """cwlpack <cwl>        
-        """)
+        """
+    )
 
 
 def localpack():
