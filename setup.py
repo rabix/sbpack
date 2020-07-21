@@ -35,7 +35,7 @@ setup(
     maintainer='Seven Bridges',
     maintainer_email='kaushik.ghose@sbgenomics.com',
     author_email='kaushik.ghose@sbgenomics.com',
-    description='Command line tool to upload CWL documents to SB powered platforms.',
+    description='Command line tool to upload and download CWL to and from SB powered platforms.',
     long_description=long_description,
     long_description_content_type="text/markdown",
     include_package_data=True,
