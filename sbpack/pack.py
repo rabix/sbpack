@@ -16,6 +16,7 @@ import urllib.request
 from typing import Union
 from copy import deepcopy
 import json
+import enum
 
 from ruamel.yaml import YAML
 
@@ -278,13 +279,22 @@ def get_git_info(cwl_path: str) -> str:
     return source_str
 
 
+class AppIdCheck(enum.IntEnum):
+    VALID = 0
+    PATH_ERROR = 1
+    ILLEGAL_CHARACTERS = 2
+
+
 def validate_id(app_id: str):
     parts = app_id.split("/")
     if len(parts) != 3:
-        return False
+        return AppIdCheck.PATH_ERROR
 
     illegal = set(".!@#$%^&*()")
-    return not any((c in illegal) for c in parts[2])
+    if any((c in illegal) for c in parts[2]):
+        return AppIdCheck.ILLEGAL_CHARACTERS
+
+    return AppIdCheck.VALID
 
 
 def print_usage():
@@ -333,8 +343,13 @@ def main():
 
     profile, appid, cwl_path = sys.argv[1:]
 
-    if not validate_id(appid):
-        print("Illegal characters in app id")
+    app_id_check = validate_id(appid)
+    if app_id_check == AppIdCheck.ILLEGAL_CHARACTERS:
+        sys.stderr.write("Illegal characters in app id\n")
+        return
+
+    if app_id_check == AppIdCheck.PATH_ERROR:
+        sys.stderr.write("Incorrect path for app id\n")
         return
 
     cwl = pack(cwl_path)
