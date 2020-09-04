@@ -61,7 +61,7 @@ def normalize_to_list(obj: Union[list, dict], key_field: str, value_field: str):
     elif isinstance(obj, dict):
         map_list = []
         for k, v in obj.items():
-            if isinstance(v, str):
+            if not isinstance(v, dict):
                 if value_field is None:
                     raise RuntimeError(f"Expecting a dict here, got {v}")
                 v = {value_field: v}
