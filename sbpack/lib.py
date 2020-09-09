@@ -95,7 +95,11 @@ def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=Fa
     else:
         new_url = link_url
 
-    contents = urllib.request.urlopen(new_url.geturl()).read().decode("utf-8")
+    if new_url.scheme in ["file://", ""]:
+        contents = pathlib.Path(new_url.path).open().read()
+    else:
+        contents = urllib.request.urlopen(new_url.geturl()).read().decode("utf-8")
+    
     new_base_url = new_url._replace(path=str(pathlib.Path(new_url.path).parent))
 
     if is_import:
