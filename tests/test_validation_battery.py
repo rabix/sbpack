@@ -14,7 +14,7 @@ fast_yaml = YAML(typ="safe")
 
 def cwl_is_valid(fname):
     try:
-        subprocess.run(["cwltool", "--validate", fname], check=True)
+        subprocess.run(["cwltool", "--validate", str(fname)], check=True)
         return True
     except subprocess.CalledProcessError as e:
         sys.stderr.write("Could not validate fname")
