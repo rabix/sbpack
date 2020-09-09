@@ -87,20 +87,40 @@ def normalized_path(link: str, base_url: urllib.parse.ParseResult):
 def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=False):
 
     link_url = urllib.parse.urlparse(link)
-    if link_url.scheme in ["file://", ""]:
-        new_url = base_url._replace(
-            path=str((pathlib.Path(base_url.path) / pathlib.Path(link)).resolve())
-        )
+
+    if link_url.scheme == "file://":
+        # Absolute local path
+        new_url = urllib.parse.ParseResult(link_url)
+        new_base_url = new_url._replace(path=str(pathlib.Path(new_url.path).parent))
+
+    elif link_url.scheme == "":
+        # Relative path, can be local or remote
+        if base_url.scheme in ["file://", ""]:
+            # Local relative path
+            new_url = base_url._replace(
+                path=str((pathlib.Path(base_url.path) / pathlib.Path(link)).resolve())
+            )
+            new_base_url = new_url._replace(path=str(pathlib.Path(new_url.path).parent))
+
+        else:
+            # Remote relative path
+            new_url = urllib.parse.urlparse(urllib.parse.urljoin(base_url.geturl() + "/dummy", link_url.path))
+            new_base_url = new_url._replace(path=str(pathlib.PurePosixPath(new_url.path).parent))
+            # We need urljoin because we need to resolve relative links in a
+            # platform independent manner
+            # We add the last "/dummy" component because of the way urljoin works
 
     else:
-        new_url = link_url
+        # Absolute remote path
+        new_url = urllib.parse.ParseResult(link_url)
+        new_base_url = new_url._replace(path=str(pathlib.PurePosixPath(new_url.path).parent))
+        # PurePosixPath ensures that remote paths don't get backward slashes on
+        # windows systems
 
     if new_url.scheme in ["file://", ""]:
         contents = pathlib.Path(new_url.path).open().read()
     else:
         contents = urllib.request.urlopen(new_url.geturl()).read().decode("utf-8")
-    
-    new_base_url = new_url._replace(path=str(pathlib.Path(new_url.path).parent))
 
     if is_import:
         _node = fast_yaml.load(contents)

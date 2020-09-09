@@ -317,7 +317,10 @@ def pack(cwl_path: str):
     if file_path_url.scheme == "":
         file_path_url = file_path_url._replace(scheme="file://")
 
-    base_url = file_path_url._replace(path=str(pathlib.Path(file_path_url.path).parent))
+    if file_path_url.scheme == "file://":
+        base_url = file_path_url._replace(path=str(pathlib.Path(file_path_url.path).parent))
+    else:
+        base_url = file_path_url._replace(path=str(pathlib.PurePosixPath(file_path_url.path).parent))
     link = str(pathlib.Path(file_path_url.path).name)
 
     cwl, base_url, full_url = lib.load_linked_file(
