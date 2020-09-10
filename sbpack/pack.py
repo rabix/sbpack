@@ -145,18 +145,6 @@ def resolve_schemadefs(cwl: dict, base_url: urllib.parse.ParseResult, link: str)
     return cwl
 
 
-def _normalized_path(link: str, base_url: urllib.parse.ParseResult):
-    link_url = urllib.parse.urlparse(link)
-    if link_url.scheme in ["file://", ""]:
-        new_url = base_url._replace(
-            path=str((pathlib.Path(base_url.path) / pathlib.Path(link)).resolve())
-        )
-    else:
-        new_url = link_url
-
-    return new_url
-
-
 def resolve_imports(cwl: dict, base_url: urllib.parse.ParseResult):
     if isinstance(cwl, dict):
         itr = cwl.items()
