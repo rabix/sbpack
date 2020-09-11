@@ -53,13 +53,13 @@ def get_inner_dict(cwl: dict, path: list):
     return None
 
 
-def pack_process(cwl: dict, base_url: urllib.parse.ParseResult, link: str):
+def pack_process(cwl: dict, base_url: urllib.parse.ParseResult):
     cwl = listify_everything(cwl)
     # cwl = dictify_requirements(cwl)
     cwl = normalize_sources(cwl)
-    cwl = resolve_schemadefs(cwl, base_url, link)
+    cwl = resolve_schemadefs(cwl, base_url)
     cwl = resolve_imports(cwl, base_url)
-    cwl = resolve_linked_processes(cwl, base_url, link)
+    cwl = resolve_linked_processes(cwl, base_url)
     cwl = add_missing_requirements(cwl)
     return cwl
 
@@ -133,15 +133,15 @@ def _normalize(s):
         return s
 
 
-def resolve_schemadefs(cwl: dict, base_url: urllib.parse.ParseResult, link: str):
-    user_defined_types = schemadef.build_user_defined_type_dict(cwl, base_url, link)
+def resolve_schemadefs(cwl: dict, base_url: urllib.parse.ParseResult):
+    user_defined_types = schemadef.build_user_defined_type_dict(cwl, base_url)
     cwl["requirements"] = [
         req
         for req in cwl.get("requirements", [])
         if req.get("class") != "SchemaDefRequirement"
     ]
-    cwl = schemadef.inline_types(cwl, "inputs", base_url, user_defined_types, link)
-    cwl = schemadef.inline_types(cwl, "outputs", base_url, user_defined_types, link)
+    cwl = schemadef.inline_types(cwl, "inputs", base_url, user_defined_types)
+    cwl = schemadef.inline_types(cwl, "outputs", base_url, user_defined_types)
     return cwl
 
 
@@ -158,7 +158,7 @@ def resolve_imports(cwl: dict, base_url: urllib.parse.ParseResult):
             if len(v) == 1:
                 _k = list(v.keys())[0]
                 if _k in ["$import", "$include"]:
-                    cwl[k], this_base_url, _ = lib.load_linked_file(
+                    cwl[k], this_base_url = lib.load_linked_file(
                         base_url, v[_k], is_import=_k == "$import"
                     )
 
@@ -167,9 +167,7 @@ def resolve_imports(cwl: dict, base_url: urllib.parse.ParseResult):
     return cwl
 
 
-def resolve_linked_processes(
-    cwl: dict, base_url: urllib.parse.ParseResult, this_link: str
-):
+def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult):
 
     if isinstance(cwl, str):
         # This is an exception for symbolic links on github
@@ -178,7 +176,7 @@ def resolve_linked_processes(
         logger.warning(
             "Expecting a process, found a string. Treating this as a symbolic link."
         )
-        cwl, this_base_url, this_full_url = lib.load_linked_file(
+        cwl, this_full_url = lib.load_linked_file(
             base_url, cwl, is_import=True
         )
         cwl = pack_process(cwl, this_base_url, this_full_url.geturl())
@@ -192,19 +190,17 @@ def resolve_linked_processes(
 
     for n, v in enumerate(cwl["steps"]):
         if isinstance(v, dict):
-            sys.stderr.write(f"\n--\nRecursing into step {this_link}:{v['id']}\n")
+            sys.stderr.write(f"\n--\nRecursing into step {base_url.geturl()}:{v['id']}\n")
 
             _run = v.get("run")
             if isinstance(_run, str):
-                v["run"], this_base_url, this_full_url = lib.load_linked_file(
+                v["run"], new_base_url = lib.load_linked_file(
                     base_url, _run, is_import=True
                 )
-                step_link = this_full_url.geturl()
             else:
-                this_base_url = base_url
-                step_link = this_link
+                new_base_url = base_url
 
-            v["run"] = pack_process(v["run"], this_base_url, step_link)
+            v["run"] = pack_process(v["run"], new_base_url)
 
     return cwl
 
@@ -302,19 +298,10 @@ where:
 def pack(cwl_path: str):
     sys.stderr.write(f"Packing {cwl_path}\n")
     file_path_url = urllib.parse.urlparse(cwl_path)
-    if file_path_url.scheme == "":
-        file_path_url = file_path_url._replace(scheme="file://")
 
-    if file_path_url.scheme == "file://":
-        base_url = file_path_url._replace(path=str(pathlib.Path(file_path_url.path).parent))
-    else:
-        base_url = file_path_url._replace(path=str(pathlib.PurePosixPath(file_path_url.path).parent))
-    link = str(pathlib.Path(file_path_url.path).name)
-
-    cwl, base_url, full_url = lib.load_linked_file(
-        base_url=base_url, link=link, is_import=True
-    )
-    cwl = pack_process(cwl, base_url, link)
+    cwl, full_url = lib.load_linked_file(
+        base_url=file_path_url, link="", is_import=True)
+    cwl = pack_process(cwl, full_url)
     return cwl
 
 

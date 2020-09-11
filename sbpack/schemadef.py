@@ -16,7 +16,7 @@ from typing import Union
 import sbpack.lib
 
 
-def build_user_defined_type_dict(cwl: dict, base_url: urllib.parse.ParseResult, link: str):
+def build_user_defined_type_dict(cwl: dict, base_url: urllib.parse.ParseResult):
     user_defined_types = {}
 
     schemadef = next((req for req in cwl.get("requirements", [])
@@ -35,7 +35,7 @@ def build_user_defined_type_dict(cwl: dict, base_url: urllib.parse.ParseResult, 
                                f"Instead, got: {schema}")
 
         if len(schema.keys()) == 1 and list(schema.keys())[0] == "$import":
-            type_definition_list, _, this_url = \
+            type_definition_list, this_url = \
                 sbpack.lib.load_linked_file(base_url, schema["$import"], is_import=True)
             # This is always a list
             if isinstance(type_definition_list, dict):
@@ -51,7 +51,7 @@ def build_user_defined_type_dict(cwl: dict, base_url: urllib.parse.ParseResult, 
                 user_defined_types[f"{path_prefix}#{k}"] = v
 
         else:
-            path_prefix = sbpack.lib.normalized_path(link, base_url).geturl()
+            path_prefix = base_url.geturl()
             user_defined_types[f"{path_prefix}#{schema.get('name')}"] = schema
 
     # sys.stderr.write(str(user_defined_types))
@@ -61,12 +61,12 @@ def build_user_defined_type_dict(cwl: dict, base_url: urllib.parse.ParseResult, 
 
 
 # port = "input" or "output"
-def inline_types(cwl: dict, port: str, base_url: urllib.parse.ParseResult, user_defined_types: dict, link: str):
-    cwl[port] = [_inline_type(v, base_url, user_defined_types, link) for v in cwl[port]]
+def inline_types(cwl: dict, port: str, base_url: urllib.parse.ParseResult, user_defined_types: dict):
+    cwl[port] = [_inline_type(v, base_url, user_defined_types) for v in cwl[port]]
     return cwl
 
 
-def _inline_type(v, base_url, user_defined_types, link):
+def _inline_type(v, base_url, user_defined_types):
     try:
         _inline_type.type_name_uniq_id += 1
     except AttributeError:
@@ -78,27 +78,27 @@ def _inline_type(v, base_url, user_defined_types, link):
         if v.endswith("[]"):
             return {
                 "type": "array",
-                "items": _inline_type(v[:-2], base_url, user_defined_types, link)
+                "items": _inline_type(v[:-2], base_url, user_defined_types)
             }
 
         if v.endswith("?"):
             return [
                     "null",
-                    _inline_type(v[:-1], base_url, user_defined_types, link)
+                    _inline_type(v[:-1], base_url, user_defined_types)
             ]
 
         if v in sbpack.lib.built_in_types:
             return v
 
         if "#" not in v:
-            path_prefix = sbpack.lib.normalized_path(link, base_url).geturl()
+            path_prefix = base_url
             path_suffix = v
         else:
             parts = v.split("#")
-            path_prefix = sbpack.lib.normalized_path(parts[0], base_url).geturl()
+            path_prefix = sbpack.lib.resolved_path(base_url, parts[0])
             path_suffix = parts[1]
 
-        path = f"{path_prefix}#{path_suffix}"
+        path = f"{path_prefix.geturl()}#{path_suffix}"
 
         if path not in user_defined_types:
             raise RuntimeError(f"Could not find type '{path}'")
@@ -106,10 +106,10 @@ def _inline_type(v, base_url, user_defined_types, link):
             resolve_type = deepcopy(user_defined_types[path])
             # resolve_type.pop("name", None) # Should work, but cwltool complains
             resolve_type["name"] = f"user_type_{_inline_type.type_name_uniq_id}"
-            return _inline_type(resolve_type, base_url, user_defined_types, path_prefix)
+            return _inline_type(resolve_type, path_prefix, user_defined_types)
 
     elif isinstance(v, list):
-        return [_inline_type(_v, base_url, user_defined_types, link) for _v in v]
+        return [_inline_type(_v, base_url, user_defined_types) for _v in v]
 
     elif isinstance(v, dict):
         _type = v.get("type")
@@ -125,7 +125,7 @@ def _inline_type(v, base_url, user_defined_types, link):
                 raise sbpack.lib.ArrayMissingItems(
                     f"In file {base_url.geturl()}, array type {_type.get('name')} is missing 'items'")
 
-            v["items"] = _inline_type(v["items"], base_url, user_defined_types, link)
+            v["items"] = _inline_type(v["items"], base_url, user_defined_types)
             return v
 
         elif _type == "record":
@@ -135,7 +135,7 @@ def _inline_type(v, base_url, user_defined_types, link):
 
             fields = sbpack.lib.normalize_to_list(v["fields"], key_field="name", value_field="type")
             v["fields"] = [
-                _inline_type(_f, base_url, user_defined_types, link)
+                _inline_type(_f, base_url, user_defined_types)
                 for _f in fields
             ]
             return v
@@ -144,7 +144,7 @@ def _inline_type(v, base_url, user_defined_types, link):
             return v
 
         else:
-            v["type"] = _inline_type(_type, base_url, user_defined_types, link)
+            v["type"] = _inline_type(_type, base_url, user_defined_types)
             return v
 
     else:

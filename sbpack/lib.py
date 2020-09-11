@@ -72,6 +72,7 @@ def normalize_to_list(obj: Union[list, dict], key_field: str, value_field: str):
         raise RuntimeError("Expecting a dictionary or a list here")
 
 
+# To deprecate
 def normalized_path(link: str, base_url: urllib.parse.ParseResult):
     link_url = urllib.parse.urlparse(link)
     if link_url.scheme in ["file://", ""]:
@@ -84,38 +85,49 @@ def normalized_path(link: str, base_url: urllib.parse.ParseResult):
     return new_url
 
 
-def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=False):
-
+def resolved_path(base_url: urllib.parse.ParseResult, link: str):
+    """
+    Given a base_url ("this document") and a link ("string in this document")
+    return a new url (urllib.parse.ParseResult) that allows us to retrieve the
+    linked document. This function will 
+    1. Resolve the path, which means dot and double dot components are resolved
+    2. Use the OS appropriate path resolution for local paths, and network
+       apropriate resolution for network paths
+    """
     link_url = urllib.parse.urlparse(link)
+    # The link will always Posix
 
     if link_url.scheme == "file://":
         # Absolute local path
         new_url = urllib.parse.ParseResult(link_url)
-        new_base_url = new_url._replace(path=str(pathlib.Path(new_url.path).parent))
 
     elif link_url.scheme == "":
         # Relative path, can be local or remote
         if base_url.scheme in ["file://", ""]:
             # Local relative path
-            new_url = base_url._replace(
-                path=str((pathlib.Path(base_url.path) / pathlib.Path(link)).resolve())
-            )
-            new_base_url = new_url._replace(path=str(pathlib.Path(new_url.path).parent))
+            if link == "":
+                new_url = base_url
+            else:
+                new_url = base_url._replace(
+                    path=str((pathlib.Path(base_url.path).parent / pathlib.Path(link)).resolve())
+                )
 
         else:
             # Remote relative path
-            new_url = urllib.parse.urlparse(urllib.parse.urljoin(base_url.geturl() + "/dummy", link_url.path))
-            new_base_url = new_url._replace(path=str(pathlib.PurePosixPath(new_url.path).parent))
+            new_url = urllib.parse.urlparse(urllib.parse.urljoin(base_url.geturl(), link_url.path))
             # We need urljoin because we need to resolve relative links in a
             # platform independent manner
-            # We add the last "/dummy" component because of the way urljoin works
 
     else:
         # Absolute remote path
         new_url = urllib.parse.ParseResult(link_url)
-        new_base_url = new_url._replace(path=str(pathlib.PurePosixPath(new_url.path).parent))
-        # PurePosixPath ensures that remote paths don't get backward slashes on
-        # windows systems
+
+    return new_url
+
+
+def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=False):
+
+    new_url = resolved_path(base_url, link)
 
     if new_url.scheme in ["file://", ""]:
         contents = pathlib.Path(new_url.path).open().read()
@@ -128,7 +140,7 @@ def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=Fa
     else:
         _node = contents
 
-    return _node, new_base_url, new_url
+    return _node, new_url
 
 
 def get_profile(profile):
