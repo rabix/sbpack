@@ -68,7 +68,7 @@ def test_remote_packing():
 
 
 def test_remote_packing_github_soft_links():
-    cwl = pack("https://raw.githubusercontent.com/rabix/sbpack/windows-fix/tests/workflows/wf5.cwl")
+    cwl = pack("https://raw.githubusercontent.com/rabix/sbpack/master/tests/workflows/wf5.cwl")
     s1 = _find(cwl.get("steps"), "id", "s1")
     tool1 = s1.get("run")
     assert tool1.get("class") == "CommandLineTool"
