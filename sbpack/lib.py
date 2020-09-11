@@ -3,9 +3,10 @@ from copy import deepcopy
 import urllib.parse
 import urllib.request
 import pathlib
+import sys
 
 import sevenbridges as sbg
-import sevenbridges.errors as sbgerr
+# import sevenbridges.errors as sbgerr
 
 from .version import __version__
 
@@ -132,7 +133,18 @@ def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=Fa
     if new_url.scheme in ["file://", ""]:
         contents = pathlib.Path(new_url.path).open().read()
     else:
-        contents = urllib.request.urlopen(new_url.geturl()).read().decode("utf-8")
+        try:
+            contents = urllib.request.urlopen(new_url.geturl()).read().decode("utf-8")
+        except urllib.error.HTTPError as e:
+            sys.stderr.write(f"{new_url.geturl()}\n")
+            raise e
+
+    if _is_github_symbolic_link(new_url, contents):
+        # This is an exception for symbolic links on github
+        sys.stderr.write(
+            f"{new_url.geturl()}: found file-like string in contents.\n" 
+            f"Treating as github symbolic link to {contents}\n")
+        return load_linked_file(new_url, contents, is_import=is_import)
 
     if is_import:
         _node = fast_yaml.load(contents)
@@ -141,6 +153,22 @@ def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=Fa
         _node = contents
 
     return _node, new_url
+
+
+def _is_github_symbolic_link(base_url: urllib.parse.ParseResult, contents: str):
+    """Look for remote path with contents that is a single line with no new
+    line with an extension."""
+    if base_url.scheme in ["file://", ""]:
+        return False
+
+    idx = contents.find("\n")
+    if idx > -1:
+        return False
+
+    if "." not in contents:
+        return False
+
+    return True
 
 
 def get_profile(profile):

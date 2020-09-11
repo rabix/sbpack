@@ -65,3 +65,10 @@ def test_remote_packing():
     _type = _find(tool2.get("inputs"), "id", "in1").get("type")
     assert isinstance(_type, dict)
     assert _type.get("type") == "array"
+
+
+def test_remote_packing_github_soft_links():
+    cwl = pack("https://raw.githubusercontent.com/rabix/sbpack/windows-fix/tests/workflows/wf5.cwl")
+    s1 = _find(cwl.get("steps"), "id", "s1")
+    tool1 = s1.get("run")
+    assert tool1.get("class") == "CommandLineTool"

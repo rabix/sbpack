@@ -170,17 +170,7 @@ def resolve_imports(cwl: dict, base_url: urllib.parse.ParseResult):
 def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult):
 
     if isinstance(cwl, str):
-        # This is an exception for symbolic links on github
-        logger.warning(base_url.geturl())
-        logger.warning(cwl)
-        logger.warning(
-            "Expecting a process, found a string. Treating this as a symbolic link."
-        )
-        cwl, this_full_url = lib.load_linked_file(
-            base_url, cwl, is_import=True
-        )
-        cwl = pack_process(cwl, this_base_url, this_full_url.geturl())
-        return cwl
+        raise RuntimeError(f"{base_url.getulr()}: Expecting a process, found a string")
 
     if not isinstance(cwl, dict):
         return cwl
