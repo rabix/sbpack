@@ -6,7 +6,6 @@ import pathlib
 import sys
 
 import sevenbridges as sbg
-# import sevenbridges.errors as sbgerr
 
 from .version import __version__
 

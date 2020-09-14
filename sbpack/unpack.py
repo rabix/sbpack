@@ -7,7 +7,9 @@ import sys
 
 import ruamel.yaml
 
-from .lib import get_profile, sbgerr
+import sevenbridges.errors as sbgerr
+
+from .lib import get_profile
 from .version import __version__
 from cwlformat.formatter import stringify_dict
 
