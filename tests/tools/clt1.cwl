@@ -37,6 +37,7 @@ outputs:
     type: ../types/array.yml#study_meta_too
     outputBinding:
       outputEval: $(inputs.in2)
+  out3: stdout
 
-baseCommand: []
-arguments: []
+baseCommand: [echo]
+arguments: [hello world]
