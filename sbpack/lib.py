@@ -10,6 +10,7 @@ import sevenbridges as sbg
 from .version import __version__
 
 from ruamel.yaml.parser import ParserError
+from ruamel.yaml.scanner import ScannerError
 from ruamel.yaml import YAML
 fast_yaml = YAML(typ="safe")
 
@@ -152,6 +153,10 @@ def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=Fa
         except ParserError as e:
             e.context = f"\n===\nMalformed file: {new_url.geturl()}\n===\n" + e.context
             raise SystemExit(e)
+        except ScannerError as e:
+            e.problem = f"\n===\nMalformed file: {new_url.geturl()}\n===\n" + e.problem
+            raise SystemExit(e)
+
     else:
         _node = contents
 
@@ -175,7 +180,10 @@ def _is_github_symbolic_link(base_url: urllib.parse.ParseResult, contents: str):
 
 
 def get_profile(profile):
-    api = sbg.Api(config=sbg.Config(profile))
+    if profile == ".":
+        api = sbg.Api()
+    else:
+        api = sbg.Api(config=sbg.Config(profile))
     # Least disruptive way to add in our user agent
     api.headers["User-Agent"] = "sbpack/{} via {}".format(
         __version__, api.headers["User-Agent"]
