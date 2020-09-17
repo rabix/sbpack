@@ -29,6 +29,9 @@ jobs:
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
+      env:
+        SB_AUTH_TOKEN: ${{ secrets.API_KEY }}
+        SB_API_ENDPOINT: https://api.sbgenomics.com/v2
       run: |
         pip install pytest
         cd tests
