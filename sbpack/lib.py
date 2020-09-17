@@ -9,6 +9,7 @@ import sevenbridges as sbg
 
 from .version import __version__
 
+from ruamel.yaml.parser import ParserError
 from ruamel.yaml import YAML
 fast_yaml = YAML(typ="safe")
 
@@ -135,8 +136,8 @@ def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=Fa
         try:
             contents = urllib.request.urlopen(new_url.geturl()).read().decode("utf-8")
         except urllib.error.HTTPError as e:
-            sys.stderr.write(f"{new_url.geturl()}\n")
-            raise e
+            e.msg += f"\n===\nCould not find linked file: {new_url.geturl()}\n===\n"
+            raise SystemExit(e)
 
     if _is_github_symbolic_link(new_url, contents):
         # This is an exception for symbolic links on github
@@ -146,8 +147,11 @@ def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=Fa
         return load_linked_file(new_url, contents, is_import=is_import)
 
     if is_import:
-        _node = fast_yaml.load(contents)
-
+        try:
+            _node = fast_yaml.load(contents)
+        except ParserError as e:
+            e.context = f"\n===\nMalformed file: {new_url.geturl()}\n===\n" + e.context
+            raise SystemExit(e)
     else:
         _node = contents
 
