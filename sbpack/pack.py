@@ -53,13 +53,15 @@ def get_inner_dict(cwl: dict, path: list):
     return None
 
 
-def pack_process(cwl: dict, base_url: urllib.parse.ParseResult):
+def pack_process(cwl: dict, base_url: urllib.parse.ParseResult,
+                 parent_user_defined_types=None):
     cwl = listify_everything(cwl)
-    # cwl = dictify_requirements(cwl)
     cwl = normalize_sources(cwl)
-    cwl = resolve_schemadefs(cwl, base_url)
+    cwl, user_defined_types = \
+        load_schemadefs(cwl, base_url, parent_user_defined_types)
+    cwl = resolve_schemadefs(cwl, base_url, user_defined_types)
     cwl = resolve_imports(cwl, base_url)
-    cwl = resolve_linked_processes(cwl, base_url)
+    cwl = resolve_steps(cwl, base_url, user_defined_types)
     cwl = add_missing_requirements(cwl)
     return cwl
 
@@ -133,13 +135,23 @@ def _normalize(s):
         return s
 
 
-def resolve_schemadefs(cwl: dict, base_url: urllib.parse.ParseResult):
+def load_schemadefs(cwl: dict, base_url: urllib.parse.ParseResult, 
+                    parent_user_defined_types=None):
     user_defined_types = schemadef.build_user_defined_type_dict(cwl, base_url)
+    if parent_user_defined_types is not None:
+        user_defined_types.update(parent_user_defined_types)
+
     cwl["requirements"] = [
         req
         for req in cwl.get("requirements", [])
         if req.get("class") != "SchemaDefRequirement"
     ]
+
+    return cwl, user_defined_types
+
+
+def resolve_schemadefs(cwl: dict, base_url: urllib.parse.ParseResult,
+                       user_defined_types):
     cwl = schemadef.inline_types(cwl, "inputs", base_url, user_defined_types)
     cwl = schemadef.inline_types(cwl, "outputs", base_url, user_defined_types)
     return cwl
@@ -167,7 +179,8 @@ def resolve_imports(cwl: dict, base_url: urllib.parse.ParseResult):
     return cwl
 
 
-def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult):
+def resolve_steps(cwl: dict, base_url: urllib.parse.ParseResult,
+                  parent_user_defined_types=None):
 
     if isinstance(cwl, str):
         raise RuntimeError(f"{base_url.getulr()}: Expecting a process, found a string")
@@ -187,10 +200,9 @@ def resolve_linked_processes(cwl: dict, base_url: urllib.parse.ParseResult):
                 v["run"], new_base_url = lib.load_linked_file(
                     base_url, _run, is_import=True
                 )
+                v["run"] = pack_process(v["run"], new_base_url)
             else:
-                new_base_url = base_url
-
-            v["run"] = pack_process(v["run"], new_base_url)
+                v["run"] = pack_process(v["run"], base_url, parent_user_defined_types)
 
     return cwl
 

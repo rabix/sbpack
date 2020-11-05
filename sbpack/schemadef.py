@@ -43,7 +43,7 @@ def build_user_defined_type_dict(cwl: dict, base_url: urllib.parse.ParseResult):
                 # except when it isn't
 
             path_prefix = this_url.geturl() #sbpack.lib.normalized_path(schema["$import"], base_url).geturl()
-            sys.stderr.write(f"Parsing Schemadefs for {path_prefix}\n")
+            sys.stderr.write(f"Parsing {len(type_definition_list)} types from {path_prefix}\n")
             for v in type_definition_list:
                 k = v.get("name")
                 if k is None:
@@ -101,7 +101,7 @@ def _inline_type(v, base_url, user_defined_types):
         path = f"{path_prefix.geturl()}#{path_suffix}"
 
         if path not in user_defined_types:
-            raise RuntimeError(f"Could not find type '{path}'")
+            raise RuntimeError(f"Could not find type '{path}' in {str(user_defined_types)}")
         else:
             resolve_type = deepcopy(user_defined_types[path])
             # resolve_type.pop("name", None) # Should work, but cwltool complains
