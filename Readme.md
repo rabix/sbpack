@@ -155,3 +155,12 @@ auth_token   = <dev token here>
 You can have several profiles on the same platform if, for example, you 
 are an enterprise user and you belong to several divisions. Please refer
 to the API documentation for more detail.
+
+### Running the test suite
+
+The pulling test requires two environment variables to be set
+
+```
+SB_AUTH_TOKEN
+SB_API_ENDPOINT
+```
