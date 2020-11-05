@@ -9,6 +9,7 @@ used to fetch data
 
 #  Copyright (c) 2020 Seven Bridges. See LICENSE
 
+import argparse
 import sys
 import pathlib
 import urllib.parse
@@ -222,6 +223,31 @@ def add_missing_requirements(cwl: dict):
     return cwl
 
 
+def no_non_sbg_tag(val: str):
+    if ":" not in val:
+        return True
+
+    if val.startswith("sbg:"):
+        return True
+
+    return False
+
+
+def filter_out_non_sbg_tags(cwl: Union[list, dict]):
+
+    if isinstance(cwl, dict):
+        return {
+            k: filter_out_non_sbg_tags(v)
+            for k, v in cwl.items()
+            if no_non_sbg_tag(k)
+        }
+
+    elif isinstance(cwl, list):
+        return [filter_out_non_sbg_tags(c) for c in cwl]
+    
+    return cwl
+
+
 def get_git_info(cwl_path: str) -> str:
     import subprocess, os
 
@@ -283,27 +309,16 @@ def validate_id(app_id: str):
     return AppIdCheck.VALID
 
 
-def print_usage():
-    print(
-        """Usage
-   sbpack <profile> <id> <cwl>
- 
-where:
-  <profile> refers to a SB platform profile as set in the SB API credentials file.
-  <id> takes the form {user}/{project}/{app_id} which installs (or updates) 
-       "app_id" located in "project" of "user".
-  <cwl> is the path to the main CWL file to be uploaded. This can be a remote file.
-"""
-    )
-
-
-def pack(cwl_path: str):
+def pack(cwl_path: str, filter_non_sbg_tags=False):
     sys.stderr.write(f"Packing {cwl_path}\n")
     file_path_url = urllib.parse.urlparse(cwl_path)
 
     cwl, full_url = lib.load_linked_file(
         base_url=file_path_url, link="", is_import=True)
     cwl = pack_process(cwl, full_url)
+    if filter_non_sbg_tags:
+        cwl = filter_out_non_sbg_tags(cwl)
+
     return cwl
 
 
@@ -317,11 +332,17 @@ def main():
         f"(c) Seven Bridges 2020\n"
     )
 
-    if len(sys.argv) != 4:
-        print_usage()
-        exit(0)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("profile", help="SB platform profile as set in the SB API credentials file.")
+    parser.add_argument("appid", help="Takes the form {user}/{project}/{app_id}.")
+    parser.add_argument("cwl_path", help="Path  or URL to the main CWL file to be uploaded.")
+    parser.add_argument("--filter-non-sbg-tags",
+                        action="store_true",
+                        help="Filter out custom tags that are not 'sbg:'")
 
-    profile, appid, cwl_path = sys.argv[1:]
+    args = parser.parse_args()
+
+    profile, appid, cwl_path = args.profile, args.appid, args.cwl_path
 
     app_id_check = validate_id(appid)
     if app_id_check == AppIdCheck.ILLEGAL_CHARACTERS:
@@ -332,7 +353,7 @@ def main():
         sys.stderr.write("Incorrect path for app id\n")
         return
 
-    cwl = pack(cwl_path)
+    cwl = pack(cwl_path, filter_non_sbg_tags=args.filter_non_sbg_tags)
 
     api = lib.get_profile(profile)
 
@@ -348,24 +369,21 @@ def main():
         return api.apps.install_app(id=appid, raw=cwl)
 
 
-def print_local_usage():
-    sys.stderr.write(
-        """cwlpack <cwl>        
-        """
-    )
-
-
 def localpack():
     logging.basicConfig()
     logger.setLevel(logging.INFO)
 
-    if len(sys.argv) != 2:
-        print_local_usage()
-        exit(0)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("cwl_path", help="Path  or URL to the main CWL file to be uploaded.")
+    parser.add_argument("--filter-non-sbg-tags",
+                        action="store_true",
+                        help="Filter out custom tags that are not 'sbg:'")
 
-    cwl_path = sys.argv[1]
+    args = parser.parse_args()
 
-    cwl = pack(cwl_path)
+    cwl_path = args.cwl_path
+
+    cwl = pack(cwl_path, filter_non_sbg_tags=args.filter_non_sbg_tags)
     fast_yaml.dump(cwl, sys.stdout)
 
 

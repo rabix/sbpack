@@ -34,15 +34,23 @@ pipx install git+https://github.com/rabix/sbpack.git
 
 ## Usage
 ```
-Usage
-   sbpack <profile> <id> <cwl>
- 
-where:
-  <profile> refers to a SB platform profile as set in the SB API credentials file.
-  <id> takes the form {user}/{project}/{app_id} which installs (or updates) 
-       "app_id" located in "project" of "user".
-  <cwl> is the path to the main CWL file to be uploaded. This can be a remote file.
-```
+$ sbpack -h
+
+sbpack v2020.10.05
+Upload CWL apps to any Seven Bridges powered platform
+(c) Seven Bridges 2020
+
+usage: sbpack [-h] [--filter-non-sbg-tags] profile appid cwl_path
+
+positional arguments:
+  profile               SB platform profile as set in the SB API credentials file.
+  appid                 Takes the form {user}/{project}/{app_id}.
+  cwl_path              Path or URL to the main CWL file to be uploaded.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --filter-non-sbg-tags
+                        Filter out custom tags that are not 'sbg:'```
  
 ## Uploading workflows defined remotely
 
@@ -60,8 +68,18 @@ sbpack sbg kghosesbg/sbpla-31744/ATAC-seq-pipeline-se https://raw.githubusercont
 
 ## Local packing
 ```
-Usage
-    cwlpack <cwl> > packed.cwl
+cwlpack <cwl> > packed.cwl
+
+$ cwlpack -h
+usage: cwlpack [-h] [--filter-non-sbg-tags] cwl_path
+
+positional arguments:
+  cwl_path              Path or URL to the main CWL file to be uploaded.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --filter-non-sbg-tags
+                        Filter out custom tags that are not 'sbg:'
 ```
 
 The `cwlpack` utility allows you to pack a workflow and print it out on `stdout` instead of 
