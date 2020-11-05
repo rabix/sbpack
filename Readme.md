@@ -50,7 +50,8 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   --filter-non-sbg-tags
-                        Filter out custom tags that are not 'sbg:'```
+                        Filter out custom tags that are not 'sbg:'
+```
  
 ## Uploading workflows defined remotely
 
