@@ -19,7 +19,7 @@ setup(
     platforms=['POSIX', 'MacOS', 'Windows'],
     python_requires='>=3.6',
     install_requires=[
-        "ruamel.yaml >= 0.15.77",
+        "ruamel.yaml >= 0.16.12",
         "sevenbridges-python >= 0.20.2",
         "cwlformat"
     ],
