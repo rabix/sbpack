@@ -27,6 +27,8 @@ inputs:
 #     type: ../types/singletype2.yml#simple_record2
   in4:
     type: [string, ../types/recursive.yml#sample_meta]
+  in5:
+    type: Any?
 
 outputs:
   out1:
