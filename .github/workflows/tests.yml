@@ -7,6 +7,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        # pipx ensurepath on ubuntu has an issue
+        # https://github.com/pipxproject/pipx/issues/597
         #os: [ubuntu-latest, macos-latest, windows-latest]
         os: [macos-latest, windows-latest]
         python-version: [3.6, 3.7, 3.8]
@@ -29,8 +31,6 @@ jobs:
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Install test dependencies
-      # env:
-      #   PIPX_BIN_DIR: pipx_bin
       run: |
         pip install pytest
         pip install pipx
