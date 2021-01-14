@@ -29,7 +29,7 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Install test dependencies
       env:
-        PIPX_BIN_DIR: /opt/pipx_bin
+        PIPX_BIN_DIR: ~/pipx_bin
       run: |
         pip install pytest
         pip install pipx
