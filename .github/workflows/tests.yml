@@ -30,9 +30,7 @@ jobs:
     - name: Install test dependencies
       run: |
         pip install pytest
-        pip install pipx
-        pipx ensurepath
-        pipx install cwltool
+        pip install 'cwltool==3.0.20201026152241'
     # Need a new shell so that ensurepath takes
     - name: Test with pytest
       env:
