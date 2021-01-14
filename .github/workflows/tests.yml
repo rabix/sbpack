@@ -34,6 +34,6 @@ jobs:
       run: |
         pip install pytest
         pip install pipx
-        pipx install cwltool
+        pipx install 'cwltool==3.0.20201026152241'
         cd tests
         py.test
