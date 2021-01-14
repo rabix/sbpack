@@ -27,16 +27,17 @@ jobs:
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test with pytest
-      env:
-        SB_AUTH_TOKEN: ${{ secrets.API_KEY }}
-        SB_API_ENDPOINT: https://api.sbgenomics.com/v2
+    - name: Install test dependencies
       run: |
         pip install pytest
         pip install pipx
         pipx ensurepath
-      # Need a new shell so that ensurepath takes
-      run: |
         pipx install cwltool
+    # Need a new shell so that ensurepath takes
+    - name: Test with pytest
+      env:
+        SB_AUTH_TOKEN: ${{ secrets.API_KEY }}
+        SB_API_ENDPOINT: https://api.sbgenomics.com/v2      
+      run: |
         cd tests
         py.test
