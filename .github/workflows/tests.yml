@@ -19,7 +19,6 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install cwltool
         pip install .
     - name: Lint with flake8
       run: |
@@ -34,5 +33,7 @@ jobs:
         SB_API_ENDPOINT: https://api.sbgenomics.com/v2
       run: |
         pip install pytest
+        pip install pipx
+        pipx install cwltool
         cd tests
         py.test
