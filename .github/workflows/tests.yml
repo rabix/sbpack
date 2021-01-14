@@ -35,6 +35,8 @@ jobs:
         pip install pytest
         pip install pipx
         pipx ensurepath
+      # Need a new shell so that ensurepath takes
+      run: |
         pipx install cwltool
         cd tests
         py.test
