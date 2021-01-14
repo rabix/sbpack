@@ -30,12 +30,15 @@ jobs:
     - name: Install test dependencies
       run: |
         pip install pytest
-        pip install 'cwltool==3.0.20201026152241'
+        pip install pipx
+        pipx install cwltool
+        pipx ensurepath
     # Need a new shell so that ensurepath takes
     - name: Test with pytest
       env:
         SB_AUTH_TOKEN: ${{ secrets.API_KEY }}
         SB_API_ENDPOINT: https://api.sbgenomics.com/v2      
       run: |
+        echo $PATH
         cd tests
         py.test
