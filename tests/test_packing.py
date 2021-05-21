@@ -72,10 +72,3 @@ def test_remote_packing_github_soft_links():
     s1 = _find(cwl.get("steps"), "id", "s1")
     tool1 = s1.get("run")
     assert tool1.get("class") == "CommandLineTool"
-
-
-def test_git_ref_in_local_workflow():
-    cwl = pack("workflows/wf-with-git.cwl")
-    git_step = _find(cwl.get("steps"), "id", "git")
-    tool = git_step.get("run")
-    assert tool.get("class") == "CommandLineTool"

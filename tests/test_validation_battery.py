@@ -25,6 +25,7 @@ def cwl_is_valid(fname):
     ('f',),
     [("tools/clt1.cwl",), ("tools/clt2.cwl",), ("tools/clt3.cwl",),
      ("workflows/wf1.cwl",), ("workflows/wf2.cwl",), ("workflows/wf4.cwl",),
+     ("workflows/wf-with-git.cwl",),
      ("https://raw.githubusercontent.com/rabix/sbpack/master/tests/workflows/wf1.cwl",),
      ("https://raw.githubusercontent.com/rabix/sbpack/master/tests/workflows/wf2.cwl",),
      ("https://raw.githubusercontent.com/rabix/sbpack/master/tests/workflows/wf4.cwl",),

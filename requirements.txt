@@ -1,0 +1,4 @@
+ruamel.yaml >= 0.16
+sevenbridges-python >= 0.20
+cwltool >= 3.0
+cwlformat
