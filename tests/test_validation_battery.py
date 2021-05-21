@@ -32,6 +32,8 @@ def cwl_is_valid(fname):
      ("remote-cwl/tool1.cwl",), ("remote-cwl/tool2.cwl",), ("remote-cwl/wf1.cwl",)
      ]
 )
+@pytest.mark.skipif(sys.platform == 'win32',
+                    reason='Skip on windows due to errors in cwltool with import pwd')
 def test_local_packing_with_validation(f):
     url = urllib.parse.urlparse(f)
     packed_name = pathlib.Path(url.path).stem + "-packed.cwl"
