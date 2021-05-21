@@ -122,7 +122,7 @@ def resolved_path(base_url: urllib.parse.ParseResult, link: str):
 
     else:
         # Absolute remote path
-        new_url = urllib.parse.ParseResult(link_url)
+        new_url = link_url
 
     return new_url
 
