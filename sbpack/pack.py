@@ -7,6 +7,7 @@ If the link is a relative path it is combined with the base and that is what is
 used to fetch data
 """
 
+#  Copyright (c) 2021 Michael R. Crusoe
 #  Copyright (c) 2020 Seven Bridges. See LICENSE
 
 import argparse
@@ -20,6 +21,7 @@ import json
 import enum
 
 from ruamel.yaml import YAML
+from packaging import version
 import sevenbridges.errors as sbgerr
 
 import sbpack.schemadef as schemadef
@@ -202,6 +204,13 @@ def resolve_steps(cwl: dict, base_url: urllib.parse.ParseResult,
                 v["run"] = pack_process(v["run"], new_base_url)
             else:
                 v["run"] = pack_process(v["run"], base_url, parent_user_defined_types)
+            if "cwlVersion" in v["run"]:
+                parent_version = version.parse(cwl["cwlVersion"].strip("v"))
+                this_version = version.parse(v["run"]["cwlVersion"].strip("v"))
+                if this_version > parent_version:
+                    cwl["cwlVersion"] = v["run"]["cwlVersion"]
+                    # not really enough, but hope for the best
+                del v["run"]["cwlVersion"]
 
     return cwl
 
