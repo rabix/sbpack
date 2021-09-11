@@ -37,7 +37,6 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     include_package_data=True,
-    license='Copyright (c) {} Seven Bridges'.format(now.year),
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
