@@ -7,6 +7,8 @@ Types can refer to other types in the file
 Names can not clash across files (This seems arbitrary and we allow that for packing)
 Only records and arrays can be defined (https://github.com/common-workflow-language/cwl-v1.2/pull/14)
 """
+#  Copyright (c) 2021 Michael R. Crusoe
+#  Copyright (c) 2020 Seven Bridges. See LICENSE
 
 import sys
 import urllib.parse
@@ -15,12 +17,41 @@ from typing import Union
 
 import sbpack.lib
 
-
 def build_user_defined_type_dict(cwl: dict, base_url: urllib.parse.ParseResult):
     user_defined_types = {}
+    # Check for `$import` directly under `requirements` so we can specially handle
+    # the new base_url
+    for index, entry in enumerate(cwl.get("requirements", [])):
+        if isinstance(entry, dict) and "$import" in entry:
+            requirement, new_base_url = sbpack.lib.load_linked_file(
+                base_url, entry["$import"], is_import=True
+            )
+            if requirement["class"] == "SchemaDefRequirement":
+                cwl["requirements"][index] = requirement
+                type_definition_list = requirement["types"]
+                path_prefix = new_base_url.geturl()
+                sys.stderr.write(
+                    f"Parsing {len(type_definition_list)} types from {path_prefix}\n"
+                )
+                for v in type_definition_list:
+                    k = v.get("name")
+                    if k is None:
+                        raise RuntimeError(f"In file {path_prefix} type missing name")
+                    user_defined_types[f"{path_prefix}#{k}"] = v
+    return _build_user_defined_type_dict(cwl, base_url, user_defined_types)
 
-    schemadef = next((req for req in cwl.get("requirements", [])
-                      if req.get("class") == "SchemaDefRequirement"), {})
+
+def _build_user_defined_type_dict(
+    cwl: dict, base_url: urllib.parse.ParseResult, user_defined_types: dict
+):
+    schemadef = next(
+        (
+            req
+            for req in cwl.get("requirements", [])
+            if req.get("class") == "SchemaDefRequirement"
+        ),
+        {},
+    )
     schema_list = schemadef.get("types", [])
 
     if not isinstance(schema_list, list):
@@ -61,8 +92,21 @@ def build_user_defined_type_dict(cwl: dict, base_url: urllib.parse.ParseResult):
 
 
 # port = "input" or "output"
-def inline_types(cwl: dict, port: str, base_url: urllib.parse.ParseResult, user_defined_types: dict):
-    cwl[port] = [_inline_type(v, base_url, user_defined_types) for v in cwl[port]]
+def inline_types(
+    cwl: dict, port: str, base_url: urllib.parse.ParseResult, user_defined_types: dict
+):
+    if (
+        len(cwl[port]) == 1
+        and isinstance(cwl[port][0], dict)
+        and cwl[port][0]["id"] == "$import"
+    ):
+        defs, base_url = sbpack.lib.load_linked_file(
+            base_url, cwl[port][0]["type"], is_import=True
+        )
+    else:
+        defs = cwl[port]
+
+    cwl[port] = [_inline_type(v, base_url, user_defined_types) for v in defs]
     return cwl
 
 
