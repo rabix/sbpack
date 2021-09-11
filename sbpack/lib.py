@@ -35,7 +35,21 @@ class MissingKeyField(BaseException):
     pass
 
 
-built_in_types = ["null", "boolean", "int", "long", "float", "double", "string",  "File", "Directory", "stdout", "stderr", "Any"]
+built_in_types = [
+    "null",
+    "boolean",
+    "int",
+    "long",
+    "float",
+    "double",
+    "string",
+    "File",
+    "Directory",
+    "stdin",
+    "stdout",
+    "stderr",
+    "Any",
+]
 magic_string = "##sbpack_rename_user_type##"
 
 
