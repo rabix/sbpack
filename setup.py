@@ -1,6 +1,7 @@
 #  Copyright (c) 2020 Seven Bridges. See LICENSE
 
 import pathlib
+import os
 from datetime import datetime
 from setuptools import setup, find_packages
 
@@ -11,6 +12,7 @@ version = open("sbpack/version.py").read().split("=")[1].strip().strip("\"")
 now = datetime.utcnow()
 desc_path = pathlib.Path(current_path, "Readme.md")
 long_description = desc_path.open("r").read()
+requirements = os.path.join(current_path, 'requirements.txt')
 
 setup(
     name=name,
@@ -18,11 +20,7 @@ setup(
     packages=find_packages(),
     platforms=['POSIX', 'MacOS', 'Windows'],
     python_requires='>=3.6',
-    install_requires=[
-        "ruamel.yaml >= 0.16.12",
-        "sevenbridges-python >= 0.20.2",
-        "cwlformat"
-    ],
+    install_requires=open(requirements).read().splitlines(),
     entry_points={
         'console_scripts': [
             'sbpack = sbpack.pack:main',

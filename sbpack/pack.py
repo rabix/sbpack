@@ -20,14 +20,12 @@ import json
 import enum
 
 from ruamel.yaml import YAML
-
-import sevenbridges as sbg
 import sevenbridges.errors as sbgerr
 
 import sbpack.schemadef as schemadef
 import sbpack.lib as lib
 
-from .version import __version__
+from sbpack.version import __version__
 
 import logging
 
