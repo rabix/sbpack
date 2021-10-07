@@ -34,7 +34,7 @@ jobs:
       run: |
         pip install pytest
         pip install pipx
-        pipx install cwltool>=1.0
+        pipx install cwltool>=3.0
         pipx ensurepath
     # Need a new shell so that ensurepath takes
     - name: Test with pytest
