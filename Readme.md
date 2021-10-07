@@ -175,6 +175,19 @@ You can have several profiles on the same platform if, for example, you
 are an enterprise user and you belong to several divisions. Please refer
 to the API documentation for more detail.
 
+### Reading credentials from env variables
+
+Instead of using the credentials file, you can specify environment variables
+`SB_API_ENDPOINT` and `SB_AUTH_TOKEN`. To use the env variables in `sbpack` simply
+specify profile `.` in the command, e.g.
+
+```bash
+sbpack . kghosesbg/sbpla-31744/ATAC-seq-pipeline-se https://raw.githubusercontent.com/Duke-GCB/GGR-cwl/master/v1.0/ATAC-seq_pipeline/pipeline-se.cwl
+```
+
+By specifying `.` profile, `sbpack` will use env variables. If these are not found, the default profile
+from the credentials file is used.
+
 ### Running the test suite
 
 The pulling test requires two environment variables to be set
