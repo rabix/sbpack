@@ -377,7 +377,7 @@ def main():
 
 
 def localpack():
-    _localpack(sys.argv)
+    _localpack(sys.argv[1:])
 
 def _localpack(args):
     logging.basicConfig()
