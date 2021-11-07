@@ -368,21 +368,28 @@ def main():
 
 
 def localpack():
+    _localpack(sys.argv)
+
+def _localpack(args):
     logging.basicConfig()
     logger.setLevel(logging.INFO)
 
     parser = argparse.ArgumentParser()
     parser.add_argument("cwl_path", help="Path  or URL to the main CWL file to be uploaded.")
+    parser.add_argument("--json", action="store_true", help="Output in JSON format, not YAML.")
     parser.add_argument("--filter-non-sbg-tags",
                         action="store_true",
                         help="Filter out custom tags that are not 'sbg:'")
 
-    args = parser.parse_args()
+    args = parser.parse_args(args)
 
     cwl_path = args.cwl_path
 
     cwl = pack(cwl_path, filter_non_sbg_tags=args.filter_non_sbg_tags)
-    fast_yaml.dump(cwl, sys.stdout)
+    if args.json:
+        json.dump(cwl, sys.stdout, indent=4)
+    else:
+        fast_yaml.dump(cwl, sys.stdout)
 
 
 if __name__ == "__main__":

@@ -72,7 +72,7 @@ sbpack sbg kghosesbg/sbpla-31744/ATAC-seq-pipeline-se https://raw.githubusercont
 cwlpack <cwl> > packed.cwl
 
 $ cwlpack -h
-usage: cwlpack [-h] [--filter-non-sbg-tags] cwl_path
+usage: cwlpack [-h] [--filter-non-sbg-tags] [--json] cwl_path
 
 positional arguments:
   cwl_path              Path or URL to the main CWL file to be uploaded.
@@ -81,6 +81,7 @@ optional arguments:
   -h, --help            show this help message and exit
   --filter-non-sbg-tags
                         Filter out custom tags that are not 'sbg:'
+  --json                Output in JSON format, not YAML.
 ```
 
 The `cwlpack` utility allows you to pack a workflow and print it out on `stdout` instead of 

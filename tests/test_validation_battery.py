@@ -17,7 +17,7 @@ def cwl_is_valid(fname):
         subprocess.run(["cwltool", "--validate", str(fname)], check=True)
         return True
     except subprocess.CalledProcessError as e:
-        sys.stderr.write("Could not validate fname")
+        sys.stderr.write("Could not validate %s.", fname)
         return False
 
 
