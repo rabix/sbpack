@@ -55,6 +55,10 @@ def test_step_packing():
     assert _type.get("type") == "array"
 
 
+def test_embedded_packing():
+    cwl = pack("workflows/count-lines16-wf.cwl")
+
+
 def test_remote_packing():
     cwl = pack("https://raw.githubusercontent.com/kaushik-work/sbpack/master/tests/wf2.cwl")
     s1 = _find(cwl.get("steps"), "id", "s1")
