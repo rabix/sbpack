@@ -54,15 +54,21 @@ def get_inner_dict(cwl: dict, path: list):
     return None
 
 
-def pack_process(cwl: dict, base_url: urllib.parse.ParseResult,
-                 parent_user_defined_types=None):
+def pack_process(
+    cwl: dict,
+    base_url: urllib.parse.ParseResult,
+    cwl_version: str,
+    parent_user_defined_types=None,
+):
     cwl = listify_everything(cwl)
     cwl = normalize_sources(cwl)
     cwl, user_defined_types = \
         load_schemadefs(cwl, base_url, parent_user_defined_types)
     cwl = resolve_schemadefs(cwl, base_url, user_defined_types)
     cwl = resolve_imports(cwl, base_url)
-    cwl = resolve_steps(cwl, base_url, user_defined_types)
+    cwl = resolve_steps(
+        cwl, base_url, cwl.get("cwlVersion", cwl_version), user_defined_types
+    )
     cwl = add_missing_requirements(cwl)
     return cwl
 
@@ -180,8 +186,12 @@ def resolve_imports(cwl: dict, base_url: urllib.parse.ParseResult):
     return cwl
 
 
-def resolve_steps(cwl: dict, base_url: urllib.parse.ParseResult,
-                  parent_user_defined_types=None):
+def resolve_steps(
+    cwl: dict,
+    base_url: urllib.parse.ParseResult,
+    cwl_version: str,
+    parent_user_defined_types=None,
+):
 
     if isinstance(cwl, str):
         raise RuntimeError(f"{base_url.getulr()}: Expecting a process, found a string")
@@ -201,11 +211,20 @@ def resolve_steps(cwl: dict, base_url: urllib.parse.ParseResult,
                 v["run"], new_base_url = lib.load_linked_file(
                     base_url, _run, is_import=True
                 )
-                v["run"] = pack_process(v["run"], new_base_url)
+                v["run"] = pack_process(
+                    v["run"], new_base_url, cwl.get("cwlVersion", cwl_version)
+                )
             else:
-                v["run"] = pack_process(v["run"], base_url, parent_user_defined_types)
+                v["run"] = pack_process(
+                    v["run"],
+                    base_url,
+                    cwl.get("cwlVersion", cwl_version),
+                    parent_user_defined_types,
+                )
             if "cwlVersion" in v["run"]:
-                parent_version = version.parse(cwl["cwlVersion"].strip("v"))
+                parent_version = version.parse(
+                    cwl.get("cwlVersion", cwl_version).strip("v")
+                )
                 this_version = version.parse(v["run"]["cwlVersion"].strip("v"))
                 if this_version > parent_version:
                     cwl["cwlVersion"] = v["run"]["cwlVersion"]
@@ -322,7 +341,7 @@ def pack(cwl_path: str, filter_non_sbg_tags=False):
 
     cwl, full_url = lib.load_linked_file(
         base_url=file_path_url, link="", is_import=True)
-    cwl = pack_process(cwl, full_url)
+    cwl = pack_process(cwl, full_url, cwl["cwlVersion"])
     if filter_non_sbg_tags:
         cwl = filter_out_non_sbg_tags(cwl)
 
