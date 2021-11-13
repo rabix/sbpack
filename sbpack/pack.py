@@ -11,6 +11,7 @@ used to fetch data
 #  Copyright (c) 2020 Seven Bridges. See LICENSE
 
 import argparse
+import os
 import sys
 import pathlib
 import urllib.parse
@@ -202,6 +203,7 @@ def resolve_steps(
     if cwl.get("class") != "Workflow":
         return cwl
 
+    workflow_id = cwl.get("id", os.path.basename(base_url.path))
     for n, v in enumerate(cwl["steps"]):
         if isinstance(v, dict):
             sys.stderr.write(f"\n--\nRecursing into step {base_url.geturl()}:{v['id']}\n")
@@ -214,6 +216,10 @@ def resolve_steps(
                 v["run"] = pack_process(
                     v["run"], new_base_url, cwl.get("cwlVersion", cwl_version)
                 )
+                if "id" not in v["run"]:
+                    v["run"][
+                        "id"
+                    ] = f"_{workflow_id}_step_{v['id']}_{os.path.basename(_run)}"
             else:
                 v["run"] = pack_process(
                     v["run"],
@@ -221,6 +227,8 @@ def resolve_steps(
                     cwl.get("cwlVersion", cwl_version),
                     parent_user_defined_types,
                 )
+                if "id" not in v["run"]:
+                    v["run"]["id"] = f"_{workflow_id}_step_{v['id']}_run"
             if "cwlVersion" in v["run"]:
                 parent_version = version.parse(
                     cwl.get("cwlVersion", cwl_version).strip("v")

@@ -59,6 +59,13 @@ def test_embedded_packing():
     cwl = pack("workflows/count-lines16-wf.cwl")
 
 
+def test_step_process_id():
+    """Workflow step with external "run" reference gets an "id" added."""
+    cwl = pack("workflows/wf2.cwl")
+    s1 = _find(cwl.get("steps"), "id", "s1")
+    assert s1["run"]["id"] == "_wf2.cwl_step_s1_clt2.cwl"
+
+
 def test_remote_packing():
     cwl = pack("https://raw.githubusercontent.com/kaushik-work/sbpack/master/tests/wf2.cwl")
     s1 = _find(cwl.get("steps"), "id", "s1")
