@@ -219,7 +219,7 @@ def resolve_steps(
                 if "id" not in v["run"]:
                     v["run"][
                         "id"
-                    ] = f"_{workflow_id}_step_{v['id']}_{os.path.basename(_run)}"
+                    ] = f"{workflow_id}:step_{v['id']}:{os.path.basename(_run)}"
             else:
                 v["run"] = pack_process(
                     v["run"],
@@ -228,7 +228,7 @@ def resolve_steps(
                     parent_user_defined_types,
                 )
                 if "id" not in v["run"]:
-                    v["run"]["id"] = f"_{workflow_id}_step_{v['id']}_run"
+                    v["run"]["id"] = f"{workflow_id}:step_{v['id']}:run"
             if "cwlVersion" in v["run"]:
                 parent_version = version.parse(
                     cwl.get("cwlVersion", cwl_version).strip("v")
