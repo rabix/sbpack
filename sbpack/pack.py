@@ -350,6 +350,8 @@ def pack(cwl_path: str, filter_non_sbg_tags=False):
     cwl, full_url = lib.load_linked_file(
         base_url=file_path_url, link="", is_import=True)
     cwl = pack_process(cwl, full_url, cwl["cwlVersion"])
+    if 'id' not in cwl:
+        cwl['id'] = os.path.basename(file_path_url.path)
     if filter_non_sbg_tags:
         cwl = filter_out_non_sbg_tags(cwl)
 
