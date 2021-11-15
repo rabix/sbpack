@@ -61,7 +61,8 @@ def test_embedded_packing():
 
 def test_step_process_id():
     """Workflow step with external "run" reference gets an "id" added."""
-    cwl = pack("workflows/wf2.cwl")
+    cwl = pack("workflows/wf2.cwl", add_ids=True)
+    assert cwl["id"] == "wf2.cwl"
     s1 = _find(cwl.get("steps"), "id", "s1")
     assert s1["run"]["id"] == "wf2.cwl:step_s1:clt2.cwl"
 

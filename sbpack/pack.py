@@ -60,6 +60,7 @@ def pack_process(
     base_url: urllib.parse.ParseResult,
     cwl_version: str,
     parent_user_defined_types=None,
+    add_ids: bool = False,
 ):
     cwl = listify_everything(cwl)
     cwl = normalize_sources(cwl)
@@ -68,7 +69,11 @@ def pack_process(
     cwl = resolve_schemadefs(cwl, base_url, user_defined_types)
     cwl = resolve_imports(cwl, base_url)
     cwl = resolve_steps(
-        cwl, base_url, cwl.get("cwlVersion", cwl_version), user_defined_types
+        cwl,
+        base_url,
+        cwl.get("cwlVersion", cwl_version),
+        user_defined_types,
+        add_ids=add_ids,
     )
     cwl = add_missing_requirements(cwl)
     return cwl
@@ -192,6 +197,7 @@ def resolve_steps(
     base_url: urllib.parse.ParseResult,
     cwl_version: str,
     parent_user_defined_types=None,
+    add_ids: bool = False,
 ):
 
     if isinstance(cwl, str):
@@ -216,7 +222,7 @@ def resolve_steps(
                 v["run"] = pack_process(
                     v["run"], new_base_url, cwl.get("cwlVersion", cwl_version)
                 )
-                if "id" not in v["run"]:
+                if "id" not in v["run"] and add_ids:
                     v["run"][
                         "id"
                     ] = f"{workflow_id}:step_{v['id']}:{os.path.basename(_run)}"
@@ -227,7 +233,7 @@ def resolve_steps(
                     cwl.get("cwlVersion", cwl_version),
                     parent_user_defined_types,
                 )
-                if "id" not in v["run"]:
+                if "id" not in v["run"] and add_ids:
                     v["run"]["id"] = f"{workflow_id}:step_{v['id']}:run"
             if "cwlVersion" in v["run"]:
                 parent_version = version.parse(
@@ -343,15 +349,15 @@ def validate_id(app_id: str):
     return AppIdCheck.VALID
 
 
-def pack(cwl_path: str, filter_non_sbg_tags=False):
+def pack(cwl_path: str, filter_non_sbg_tags=False, add_ids=False):
     sys.stderr.write(f"Packing {cwl_path}\n")
     file_path_url = urllib.parse.urlparse(cwl_path)
 
     cwl, full_url = lib.load_linked_file(
         base_url=file_path_url, link="", is_import=True)
-    cwl = pack_process(cwl, full_url, cwl["cwlVersion"])
-    if 'id' not in cwl:
-        cwl['id'] = os.path.basename(file_path_url.path)
+    cwl = pack_process(cwl, full_url, cwl["cwlVersion"], add_ids=add_ids)
+    if add_ids and "id" not in cwl:
+        cwl["id"] = os.path.basename(file_path_url.path)
     if filter_non_sbg_tags:
         cwl = filter_out_non_sbg_tags(cwl)
 
@@ -413,17 +419,30 @@ def _localpack(args):
     logger.setLevel(logging.INFO)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("cwl_path", help="Path  or URL to the main CWL file to be uploaded.")
-    parser.add_argument("--json", action="store_true", help="Output in JSON format, not YAML.")
-    parser.add_argument("--filter-non-sbg-tags",
-                        action="store_true",
-                        help="Filter out custom tags that are not 'sbg:'")
+    parser.add_argument(
+        "cwl_path", help="Path  or URL to the main CWL file to be uploaded."
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Output in JSON format, not YAML."
+    )
+    parser.add_argument(
+        "--add-ids",
+        action="store_true",
+        help='Insert "id" fields in processes, if they are missing.',
+    )
+    parser.add_argument(
+        "--filter-non-sbg-tags",
+        action="store_true",
+        help="Filter out custom tags that are not 'sbg:'",
+    )
 
     args = parser.parse_args(args)
 
     cwl_path = args.cwl_path
 
-    cwl = pack(cwl_path, filter_non_sbg_tags=args.filter_non_sbg_tags)
+    cwl = pack(
+        cwl_path, filter_non_sbg_tags=args.filter_non_sbg_tags, add_ids=args.add_ids
+    )
     if args.json:
         json.dump(cwl, sys.stdout, indent=4)
     else:

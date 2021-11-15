@@ -115,12 +115,14 @@
                 ],
                 "arguments": [
                     "hello world"
-                ]
+                ],
+                "id": "wf6.cwl:step_s1:run"
             },
             "out": [
                 "out1"
             ],
             "id": "s1"
         }
-    ]
+    ],
+    "id": "wf6.cwl"
 }
