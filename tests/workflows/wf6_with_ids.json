@@ -1,0 +1,128 @@
+{
+    "class": "Workflow",
+    "cwlVersion": "v1.0",
+    "requirements": [
+        {
+            "class": "SubworkflowFeatureRequirement"
+        },
+        {
+            "class": "InlineJavascriptRequirement"
+        }
+    ],
+    "inputs": [
+        {
+            "type": {
+                "name": "user_type_2",
+                "type": "record",
+                "fields": [
+                    {
+                        "name": "file",
+                        "type": "File"
+                    },
+                    {
+                        "name": "meta",
+                        "type": {
+                            "name": "user_type_6",
+                            "type": "record",
+                            "fields": [
+                                {
+                                    "name": "sample",
+                                    "type": [
+                                        "null",
+                                        "string"
+                                    ]
+                                },
+                                {
+                                    "name": "species",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            "id": "in1"
+        }
+    ],
+    "outputs": [
+        {
+            "id": "out1",
+            "type": "File",
+            "outputSource": "s1/out1"
+        }
+    ],
+    "steps": [
+        {
+            "in": [
+                {
+                    "source": "in1",
+                    "id": "in1"
+                }
+            ],
+            "run": {
+                "class": "CommandLineTool",
+                "requirements": [
+                    {
+                        "class": "InlineJavascriptRequirement"
+                    }
+                ],
+                "inputs": [
+                    {
+                        "type": {
+                            "name": "user_type_15",
+                            "type": "record",
+                            "fields": [
+                                {
+                                    "name": "file",
+                                    "type": "File"
+                                },
+                                {
+                                    "name": "meta",
+                                    "type": {
+                                        "name": "user_type_19",
+                                        "type": "record",
+                                        "fields": [
+                                            {
+                                                "name": "sample",
+                                                "type": [
+                                                    "null",
+                                                    "string"
+                                                ]
+                                            },
+                                            {
+                                                "name": "species",
+                                                "type": "string"
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        "id": "in1"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "type": "File",
+                        "outputBinding": {
+                            "glob": "*.txt"
+                        },
+                        "id": "out1"
+                    }
+                ],
+                "baseCommand": [
+                    "echo"
+                ],
+                "arguments": [
+                    "hello world"
+                ],
+                "id": "wf6.cwl:step_s1:run"
+            },
+            "out": [
+                "out1"
+            ],
+            "id": "s1"
+        }
+    ],
+    "id": "wf6.cwl"
+}
