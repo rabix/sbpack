@@ -355,6 +355,9 @@ def pack(cwl_path: str, filter_non_sbg_tags=False, add_ids=False):
 
     cwl, full_url = lib.load_linked_file(
         base_url=file_path_url, link="", is_import=True)
+    if "$graph" in cwl:
+        # assume already packed
+        return cwl
     cwl = pack_process(cwl, full_url, cwl["cwlVersion"], add_ids=add_ids)
     if add_ids and "id" not in cwl:
         cwl["id"] = os.path.basename(file_path_url.path)
