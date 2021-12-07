@@ -84,3 +84,11 @@ def test_remote_packing_github_soft_links():
     s1 = _find(cwl.get("steps"), "id", "s1")
     tool1 = s1.get("run")
     assert tool1.get("class") == "CommandLineTool"
+
+def test_already_packed_graph():
+    """Workflow already packed in a $graph."""
+    cwl = pack("workflows/scatter-wf4.cwl")
+    assert "inputs" not in cwl
+    assert "outputs" not in cwl
+    assert "$graph" in cwl
+    assert "requirements" not in cwl
