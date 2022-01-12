@@ -64,7 +64,7 @@ def test_step_process_id():
     cwl = pack("workflows/wf2.cwl", add_ids=True)
     assert cwl["id"] == "wf2.cwl"
     s1 = _find(cwl.get("steps"), "id", "s1")
-    assert s1["run"]["id"] == "wf2.cwl:step_s1:clt2.cwl"
+    assert s1["run"]["id"] == "wf2.cwl@step_s1@clt2.cwl"
 
 
 def test_remote_packing():
