@@ -250,7 +250,7 @@ def resolve_steps(
 
 def add_missing_requirements(cwl: dict):
     requirements = cwl.get("requirements", [])
-    present = set(req["class"] for req in requirements)
+    present = {req["class"] for req in requirements}
 
     def _add_req(_req_name: str):
         nonlocal requirements
@@ -407,10 +407,10 @@ def main():
     ] = f"Uploaded using sbpack v{__version__}. \nSource: {get_git_info(cwl_path)}"
     try:
         app = api.apps.get(appid)
-        logger.debug("Creating revised app: {}".format(appid))
+        logger.debug(f"Creating revised app: {appid}")
         return api.apps.create_revision(id=appid, raw=cwl, revision=app.revision + 1)
     except sbgerr.NotFound:
-        logger.debug("Creating new app: {}".format(appid))
+        logger.debug(f"Creating new app: {appid}")
         return api.apps.install_app(id=appid, raw=cwl)
 
 

@@ -13,7 +13,7 @@ Resolves linked processes, schemadefs and `$include`s and `$import`s.
 
 [pipx]: https://github.com/pipxproject/pipx
 
-`sbpack` needs Python 3.6 or later
+`sbpack` needs Python 3.7 or later
 
 ```
 pip3 install pipx  # in case you don't have pipx
