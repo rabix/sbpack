@@ -19,7 +19,7 @@ setup(
     version=version,
     packages=find_packages(),
     platforms=['POSIX', 'MacOS', 'Windows'],
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     install_requires=open(requirements).read().splitlines(),
     entry_points={
         'console_scripts': [
@@ -44,6 +44,9 @@ setup(
         'Natural Language :: English',
         'Operating System :: POSIX',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3 :: Only'
     ],
     keywords='seven bridges cwl common workflow language'
