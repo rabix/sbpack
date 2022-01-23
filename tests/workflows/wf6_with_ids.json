@@ -12,7 +12,7 @@
     "inputs": [
         {
             "type": {
-                "name": "user_type_2",
+                "name": "file_with_sample_meta",
                 "type": "record",
                 "fields": [
                     {
@@ -22,7 +22,7 @@
                     {
                         "name": "meta",
                         "type": {
-                            "name": "user_type_6",
+                            "name": "sample_meta",
                             "type": "record",
                             "fields": [
                                 {
@@ -69,7 +69,7 @@
                 "inputs": [
                     {
                         "type": {
-                            "name": "user_type_15",
+                            "name": "file_with_sample_meta_15",
                             "type": "record",
                             "fields": [
                                 {
@@ -79,7 +79,7 @@
                                 {
                                     "name": "meta",
                                     "type": {
-                                        "name": "user_type_19",
+                                        "name": "sample_meta_19",
                                         "type": "record",
                                         "fields": [
                                             {

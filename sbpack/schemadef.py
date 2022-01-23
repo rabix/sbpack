@@ -115,6 +115,10 @@ def _inline_type(v, base_url, user_defined_types):
         _inline_type.type_name_uniq_id += 1
     except AttributeError:
         _inline_type.type_name_uniq_id = 1
+    try:
+        len(_inline_type.type_names)
+    except AttributeError:
+        _inline_type.type_names = set()
 
     if isinstance(v, str):
 
@@ -149,7 +153,16 @@ def _inline_type(v, base_url, user_defined_types):
         else:
             resolve_type = deepcopy(user_defined_types[path])
             # resolve_type.pop("name", None) # Should work, but cwltool complains
-            resolve_type["name"] = f"user_type_{_inline_type.type_name_uniq_id}"
+            if "name" in resolve_type:
+                user_type_name = resolve_type["name"]
+                if user_type_name in _inline_type.type_names:
+                    resolve_type[
+                        "name"
+                    ] = f"{user_type_name}_{_inline_type.type_name_uniq_id}"
+                else:
+                    _inline_type.type_names.add(user_type_name)
+            else:
+                resolve_type["name"] = f"user_type_{_inline_type.type_name_uniq_id}"
             return _inline_type(resolve_type, path_prefix, user_defined_types)
 
     elif isinstance(v, list):
