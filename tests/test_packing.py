@@ -59,6 +59,19 @@ def test_embedded_packing():
     cwl = pack("workflows/count-lines16-wf.cwl")
 
 
+def test_embedded_packing_with_ids():
+    cwl = pack("workflows/count-lines16-wf.cwl", add_ids=True)
+    assert cwl["steps"][0]["run"]["id"] == "count-lines16-wf.cwl@step_step1@run"
+    assert (
+        cwl["steps"][0]["run"]["steps"][0]["run"]["id"]
+        == "count-lines16-wf.cwl@step_step1@wc-tool.cwl"
+    )
+    assert (
+        cwl["steps"][0]["run"]["steps"][1]["run"]["steps"][0]["run"]["id"]
+        == "count-lines16-wf.cwl@step_step1@parseInt-tool.cwl"
+    )
+
+
 def test_step_process_id():
     """Workflow step with external "run" reference gets an "id" added."""
     cwl = pack("workflows/wf2.cwl", add_ids=True)
