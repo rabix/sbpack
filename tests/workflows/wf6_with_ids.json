@@ -1,14 +1,7 @@
 {
     "class": "Workflow",
     "cwlVersion": "v1.0",
-    "requirements": [
-        {
-            "class": "SubworkflowFeatureRequirement"
-        },
-        {
-            "class": "InlineJavascriptRequirement"
-        }
-    ],
+    "requirements": [],
     "inputs": [
         {
             "type": {
@@ -61,11 +54,7 @@
             ],
             "run": {
                 "class": "CommandLineTool",
-                "requirements": [
-                    {
-                        "class": "InlineJavascriptRequirement"
-                    }
-                ],
+                "requirements": [],
                 "inputs": [
                     {
                         "type": {

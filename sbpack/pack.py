@@ -148,7 +148,7 @@ def _normalize(s):
         return s
 
 
-def load_schemadefs(cwl: dict, base_url: urllib.parse.ParseResult, 
+def load_schemadefs(cwl: dict, base_url: urllib.parse.ParseResult,
                     parent_user_defined_types=None):
     user_defined_types = schemadef.build_user_defined_type_dict(cwl, base_url)
     if parent_user_defined_types is not None:
@@ -258,8 +258,13 @@ def add_missing_requirements(cwl: dict):
             requirements += [{"class": _req_name}]
 
     if cwl.get("class") == "Workflow":
-        _add_req("SubworkflowFeatureRequirement")
-    _add_req("InlineJavascriptRequirement")
+        sub_worflow = False
+        for step in cwl["steps"]:
+            if step["run"]["class"] == "Workflow":
+                sub_worflow = True
+                break
+        if sub_worflow:
+            _add_req("SubworkflowFeatureRequirement")
     return cwl
 
 
