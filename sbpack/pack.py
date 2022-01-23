@@ -220,7 +220,10 @@ def resolve_steps(
                     base_url, _run, is_import=True
                 )
                 v["run"] = pack_process(
-                    v["run"], new_base_url, cwl.get("cwlVersion", cwl_version)
+                    v["run"],
+                    new_base_url,
+                    cwl.get("cwlVersion", cwl_version),
+                    add_ids=add_ids,
                 )
                 if "id" not in v["run"] and add_ids:
                     v["run"][
@@ -232,6 +235,7 @@ def resolve_steps(
                     base_url,
                     cwl.get("cwlVersion", cwl_version),
                     parent_user_defined_types,
+                    add_ids=add_ids,
                 )
                 if "id" not in v["run"] and add_ids:
                     v["run"]["id"] = f"{workflow_id}@step_{v['id']}@run"
