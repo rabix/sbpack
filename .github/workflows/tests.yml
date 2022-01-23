@@ -15,10 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # pipx ensurepath on ubuntu has an issue
-        # https://github.com/pipxproject/pipx/issues/597
-        #os: [ubuntu-latest, macos-latest, windows-latest]
-        os: [macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: [3.7, 3.8, 3.9, "3.10"]
 
     steps:
