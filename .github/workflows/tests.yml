@@ -26,8 +26,9 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install .
+        python -m pip install --upgrade wheel
+        python -m pip install --upgrade "pip!=22.0.1" "pip!=22.0.2" "pip!=22.0.0" setuptools
+        python -m pip install .
     - name: Lint with flake8
       run: |
         pip install flake8
