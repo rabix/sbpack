@@ -417,10 +417,10 @@ def main():
     try:
         app = api.apps.get(appid)
         logger.debug(f"Creating revised app: {appid}")
-        return api.apps.create_revision(id=appid, raw=cwl, revision=app.revision + 1)
+        api.apps.create_revision(id=appid, raw=cwl, revision=app.revision + 1)
     except sbgerr.NotFound:
         logger.debug(f"Creating new app: {appid}")
-        return api.apps.install_app(id=appid, raw=cwl)
+        api.apps.install_app(id=appid, raw=cwl)
 
 
 def localpack():
