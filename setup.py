@@ -25,7 +25,10 @@ setup(
         'console_scripts': [
             'sbpack = sbpack.pack:main',
             'cwlpack = sbpack.pack:localpack',
-            'sbpull = sbpack.unpack:main'
+            'sbpull = sbpack.unpack:main',
+            'sbpack_nf = sbpack.noncwl.nextflow:main',
+            'sbpack_wdl = sbpack.noncwl.wdl:main',
+            'sbcopy = sbpack.noncwl.copy:main',
         ],
     },
 
