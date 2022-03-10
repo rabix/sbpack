@@ -41,7 +41,7 @@ jobs:
         pip install -r test-requirements.txt
         pip install pipx
         pipx install cwltool>=3.0
-        pip uninstall pytest-workflow
+        pip uninstall -y pytest-workflow
         pipx ensurepath
     # Need a new shell so that ensurepath takes
     - name: Test with pytest
