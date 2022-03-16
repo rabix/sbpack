@@ -247,7 +247,6 @@ def resolve_steps(
                 if this_version > parent_version:
                     cwl["cwlVersion"] = v["run"]["cwlVersion"]
                     # not really enough, but hope for the best
-                del v["run"]["cwlVersion"]
 
     return cwl
 

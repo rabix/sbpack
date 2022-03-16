@@ -54,6 +54,7 @@
             ],
             "run": {
                 "class": "CommandLineTool",
+                "cwlVersion": "v1.0",
                 "requirements": [],
                 "inputs": [
                     {
