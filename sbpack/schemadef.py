@@ -7,6 +7,7 @@ Types can refer to other types in the file
 Names can not clash across files (This seems arbitrary and we allow that for packing)
 Only records and arrays can be defined (https://github.com/common-workflow-language/cwl-v1.2/pull/14)
 """
+#  Copyright (c) 2023 Genomics plc
 #  Copyright (c) 2021 Michael R. Crusoe
 #  Copyright (c) 2020 Seven Bridges. See LICENSE
 
@@ -169,6 +170,13 @@ def _inline_type(v, base_url, user_defined_types):
         return [_inline_type(_v, base_url, user_defined_types) for _v in v]
 
     elif isinstance(v, dict):
+        if v.get("$import") is not None:
+            imported_type, import_base_url = sbpack.lib.load_linked_file(
+                base_url, v["$import"], is_import=True
+            )
+
+            return _inline_type(imported_type, import_base_url, user_defined_types)
+
         _type = v.get("type")
         if _type is None:
             raise sbpack.lib.MissingTypeName(

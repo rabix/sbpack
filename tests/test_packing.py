@@ -105,3 +105,8 @@ def test_already_packed_graph():
     assert "outputs" not in cwl
     assert "$graph" in cwl
     assert "requirements" not in cwl
+
+def test_import_in_type():
+    cwl = pack("workflows/import-in-type.cwl")
+    print(cwl)
+    assert cwl["inputs"][0]["type"] == ["File", "Directory"]
