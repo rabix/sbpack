@@ -108,5 +108,4 @@ def test_already_packed_graph():
 
 def test_import_in_type():
     cwl = pack("workflows/import-in-type.cwl")
-    print(cwl)
     assert cwl["inputs"][0]["type"] == ["File", "Directory"]
