@@ -1,21 +1,33 @@
+import re
+
 import ruamel.yaml
 import json
 import sbpack.lib as lib
 import argparse
 from nf_core.schema import PipelineSchema
 import logging
-from sevenbridges.errors import NotFound
 from sbpack.version import __version__
 import os
 import yaml
-from sbpack.noncwl.utils import (zip_and_push_to_sb, get_readme, update_schema_code_package, install_or_upgrade_app,
-                                 GENERIC_FILE_ARRAY_INPUT, WRAPPER_REQUIREMENTS)
+from sbpack.noncwl.utils import (
+    zip_and_push_to_sb, get_readme, update_schema_code_package,
+    install_or_upgrade_app, GENERIC_FILE_ARRAY_INPUT, WRAPPER_REQUIREMENTS)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 PACKAGE_SIZE_LIMIT = 100 * 1024 * 1024  # MB
 NF_SCHEMA_DEFAULT_NAME = 'nextflow_schema.json'
+
+
+def get_dict_depth(dict_, level=0):
+    n = level
+    for k, v in dict_.items():
+        if type(v) is dict:
+            lv = get_dict_depth(v, level + 1)
+            if lv > n:
+                n = lv
+    return n
 
 
 class SBNextflowWrapper:
@@ -28,6 +40,8 @@ class SBNextflowWrapper:
         self.nf_schema_path = os.path.join(workflow_path,
                                            NF_SCHEMA_DEFAULT_NAME)
         self.sb_doc = sb_doc
+        self.executor_version = None
+        self.output_ymls = None
 
     @staticmethod
     def nf_schema_type_mapper(t):
@@ -64,9 +78,11 @@ class SBNextflowWrapper:
         return [
             {
                 "id": "nf_workdir",
+                "label": "Work Directory",
                 "type": "Directory",
                 "doc": "This is a template output. "
-                       "Please change glob to directories specified in publishDir in the workflow.",
+                       "Please change glob to directories specified in "
+                       "publishDir in the workflow.",
                 "outputBinding": {
                     "glob": "work"
                 }
@@ -79,7 +95,8 @@ class SBNextflowWrapper:
         """
         sb_input = dict()
         sb_input['id'] = port_id
-        sb_input['type'] = self.nf_schema_type_mapper(port_data.get('type', 'string'))
+        sb_input['type'] = self.nf_schema_type_mapper(port_data.get(
+            'type', 'string'))
         if not required:
             sb_input['type'].append('null')
         for nf_field, sb_field in self.nf_cwl_port_map().items():
@@ -136,17 +153,124 @@ class SBNextflowWrapper:
 
         cwl_inputs = list()
         for p_key, p_value in nf_schema.get('properties', {}).items():
-            cwl_inputs.append(self.nf_to_sb_input_mapper(p_key, p_value))
+            cwl_inputs.append(
+                self.nf_to_sb_input_mapper(p_key, p_value))
         for def_name, definition in nf_schema.get('definitions', {}).items():
-            cwl_inputs.extend(self.collect_nf_definition_properties(definition))
+            cwl_inputs.extend(
+                self.collect_nf_definition_properties(definition))
         cwl_inputs.append(GENERIC_FILE_ARRAY_INPUT)
         return cwl_inputs
+
+    def generate_sb_outputs(self):
+        """
+        Generate SB output schema
+        """
+        output_ids = set()
+        sb_output = list()
+        sb_output.extend(self.default_nf_sb_outputs())
+
+        if self.output_ymls:
+            for yml in self.output_ymls:
+                for output in self.parse_output_yml(yml):
+                    base_id = output['id']
+                    id_ = base_id
+                    i = 1
+                    while id_ in output_ids:
+                        id_ = f'{base_id}_{i}'
+                        i += 1
+
+                    output_ids.add(output['id'])
+                    sb_output.append(output)
+        return sb_output
+
+    def make_output_type(self, key, dict_, is_record=False):
+        file_pattern = re.compile(r'.*\.(\w+)$')
+        folder_pattern = re.compile(r'[^.]+$')
+        id_key = 'id'
+
+        output = dict()
+
+        if is_record:
+            id_key = 'name'
+
+        name = key
+        if 'display' in dict_:
+            name = dict_['display']
+
+        id_ = re.sub(r'[^a-zA-Z0-9_]', "", name.replace(
+            " ", "_")).lower()
+
+        if get_dict_depth(dict_) > 0:
+            # this is a record
+            fields = [self.make_output_type(key, val, is_record=True)
+                      for key, val in dict_.items()]
+            field_ids = set()
+
+            for field in fields:
+                base_field_id = field['name']
+                chk_id = base_field_id
+                i = 1
+                if chk_id in field_ids:
+                    chk_id = f"{base_field_id}_{i}"
+                    i += 1
+                field_ids.add(chk_id)
+                field['name'] = chk_id
+
+            output = {
+                id_key: id_,
+                "label": name,
+                "type": [
+                    "null",
+                    {
+                        "type": "record",
+                        "fields": fields,
+                        "name": id_
+                    }
+                ]
+            }
+
+        elif re.fullmatch(file_pattern, key):
+            # this is a list of files
+            output = {
+                id_key: id_,
+                "label": name,
+                "type": "File[]?",
+                "outputBinding": {
+                    "glob": key
+                }
+            }
+
+        elif re.fullmatch(folder_pattern, key):
+            # this is a list of directories
+            output = {
+                id_key: id_,
+                "label": name,
+                "type": "Directory[]?",
+                "outputBinding": {
+                    "glob": key,
+                    "loadListing": "deep_listing"
+                }
+            }
+        return output
+
+    def parse_output_yml(self, yml_file):
+        outputs = list()
+        yml_schema = ruamel.yaml.safe_load(yml_file)
+
+        # handle tower.yml
+        for key, value in yml_schema.items():
+            outputs.append(
+                self.make_output_type(key, value)
+            )
+
+        return outputs
 
     def dump_sb_wrapper(self, out_format='yaml'):
         """
         Dump SB wrapper for nextflow workflow to a file
         """
-        sb_wrapper_path = os.path.join(self.workflow_path, f'sb_nextflow_schema.{out_format}')
+        sb_wrapper_path = os.path.join(
+            self.workflow_path, f'sb_nextflow_schema.{out_format}')
         if out_format == 'yaml':
             with open(sb_wrapper_path, 'w') as f:
                 yaml.dump(self.sb_wrapper, f, indent=4, sort_keys=True)
@@ -154,14 +278,22 @@ class SBNextflowWrapper:
             with open(sb_wrapper_path, 'w') as f:
                 json.dump(self.sb_wrapper, f, indent=4, sort_keys=True)
 
-    def generate_sb_app(self, sb_schema=None,
-                        sb_entrypoint='main.nf'):  # default nextflow entrypoint
+    def generate_sb_app(
+            self, sb_schema=None,
+            sb_entrypoint='main.nf',
+            executor_version=None,
+            output_ymls=None
+    ):  # default nextflow entrypoint
         """
-        Generate a SB app for a nextflow workflow, OR edit the one created and
+        Generate an SB app for a nextflow workflow, OR edit the one created and
         defined by the user
         """
+        if output_ymls:
+            self.output_ymls = output_ymls
+
         if sb_schema:
-            new_code_package = self.sb_package_id if self.sb_package_id else None
+            new_code_package = self.sb_package_id if \
+                self.sb_package_id else None
             schema_ext = sb_schema.split('/')[-1].split('.')[-1]
 
             return update_schema_code_package(sb_schema, schema_ext,
@@ -173,13 +305,20 @@ class SBNextflowWrapper:
 
             self.sb_wrapper['inputs'] = self.generate_sb_inputs()
 
-            self.sb_wrapper['outputs'] = self.default_nf_sb_outputs()
+            self.sb_wrapper['outputs'] = self.generate_sb_outputs()
             self.sb_wrapper['requirements'] = WRAPPER_REQUIREMENTS
+
             app_content = dict()
             if self.sb_package_id:
                 app_content['code_package'] = self.sb_package_id
             app_content['entrypoint'] = sb_entrypoint
+
+            if executor_version or self.executor_version:
+                app_content['executor_version'] = executor_version or \
+                                                  self.executor_version
+
             self.sb_wrapper['app_content'] = app_content
+
             if self.sb_doc:
                 self.sb_wrapper['doc'] = self.sb_doc
             elif get_readme(self.workflow_path):
@@ -192,38 +331,48 @@ def main():
     pass
     # CLI parameters
     parser = argparse.ArgumentParser()
-    parser.add_argument("--profile", default="default",
-                        help="SB platform profile as set in the SB API "
-                             "credentials file.")
-    parser.add_argument("--appid", required=True,
-                        help="Takes the form "
-                             "{user or division}/{project}/{app_id}.")
-    parser.add_argument("--entrypoint", required=True,
-                        help="Relative path to the workflow from the main "
-                             "workflow directory")
-    parser.add_argument("--workflow-path", required=True,
-                        help="Path to the main workflow directory")
-    parser.add_argument("--sb-package-id", required=False,
-                        help="Id of an already uploaded package")
-    parser.add_argument("--sb-doc", required=False,
-                        help="Path to a doc file for sb app. If not provided, "
-                             "README.md will be used if available")
-    parser.add_argument("--dump-sb-app",
-                        action="store_true", required=False,
-                        help="Dump created sb app to file if true and exit")
-    parser.add_argument("--no-package",
-                        action="store_true", required=False,
-                        help="Only provide a sb app schema and a git URL for "
-                             "entrypoint")
-    parser.add_argument("--json",
-                        action="store_true", required=False,
-                        help="Dump sb app schema in JSON format "
-                             "(YAML by default)")
-    parser.add_argument("--sb-schema", required=False,
-                        help="Do not create new schema, use this schema file. "
-                             "It is sb_nextflow_schema in JSON or YAML format.")
+    parser.add_argument(
+        "--profile", default="default",
+        help="SB platform profile as set in the SB API credentials file.")
+    parser.add_argument(
+        "--appid", required=True,
+        help="Takes the form {user or division}/{project}/{app_id}.")
+    parser.add_argument(
+        "--entrypoint", required=True,
+        help="Relative path to the workflow from the main workflow directory")
+    parser.add_argument(
+        "--workflow-path", required=True,
+        help="Path to the main workflow directory")
+    parser.add_argument(
+        "--sb-package-id", required=False,
+        help="Id of an already uploaded package")
+    parser.add_argument(
+        "--sb-doc", required=False,
+        help="Path to a doc file for sb app. If not provided, README.md "
+             "will be used if available")
+    parser.add_argument(
+        "--dump-sb-app", action="store_true", required=False,
+        help="Dump created sb app to file if true and exit")
+    parser.add_argument(
+        "--no-package", action="store_true", required=False,
+        help="Only provide a sb app schema and a git URL for entrypoint")
+    parser.add_argument(
+        "--executor-version", required=False,
+        help="Version of the Nextflow executor to be used with the app.")
+    parser.add_argument(
+        "--json", action="store_true", required=False,
+        help="Dump sb app schema in JSON format (YAML by default)")
+    parser.add_argument(
+        "--sb-schema", required=False,
+        help="Do not create new schema, use this schema file. "
+             "It is sb_nextflow_schema in JSON or YAML format.")
+    parser.add_argument(
+        "--output-schema-files", required=False,
+        default=None, type=argparse.FileType('r'), nargs='+',
+        help="Additional output schema files in yaml format (ex. tower.yml)")
 
     args = parser.parse_args()
+    print(args)
 
     # Preprocess CLI parameter values
 
@@ -250,8 +399,11 @@ def main():
             project_id=project_id,
             folder_name='nextflow_workflows'
         )
-        sb_app = nf_wrapper.generate_sb_app(sb_entrypoint=args.entrypoint,
-                                            sb_schema=args.sb_schema)
+        sb_app = nf_wrapper.generate_sb_app(
+            sb_entrypoint=args.entrypoint,
+            sb_schema=args.sb_schema,
+            executor_version=args.executor_version
+        )
 
     else:
         # Zip and upload
@@ -269,7 +421,11 @@ def main():
         # Build or update nextflow inputs schema
         nf_wrapper.nf_schema_build()
         # Create app
-        sb_app = nf_wrapper.generate_sb_app(sb_entrypoint=args.entrypoint)
+        sb_app = nf_wrapper.generate_sb_app(
+            sb_entrypoint=args.entrypoint,
+            executor_version=args.executor_version,
+            output_ymls=args.output_schema_files
+        )
         # Dump app to local file
         out_format = 'json' if args.json else 'yaml'
         nf_wrapper.dump_sb_wrapper(out_format=out_format)
@@ -282,7 +438,7 @@ def main():
                 "sbg:revisionNotes"
             ] = f"Uploaded using sbpack v{__version__}"
 
-        install_or_upgrade_app(api,args.appid,sb_app)
+        install_or_upgrade_app(api, args.appid, sb_app)
 
 
 if __name__ == "__main__":
