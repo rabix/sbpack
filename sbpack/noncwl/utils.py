@@ -90,7 +90,7 @@ def update_schema_code_package(sb_schema, schema_ext, new_code_package):
     """
     Update the package in the sb_schema
     """
-    if schema_ext == 'json':
+    if schema_ext.lower() in ['json', 'cwl']:
         with open(sb_schema, 'r') as file:
             sb_schema_json = json.load(file)
         sb_schema_json['app_content']['code_package'] = new_code_package
@@ -99,7 +99,7 @@ def update_schema_code_package(sb_schema, schema_ext, new_code_package):
 
         return sb_schema_json
 
-    elif schema_ext == 'yaml':
+    elif schema_ext.lower() in ['yaml', 'yml']:
         with open(sb_schema, 'r') as file:
             sb_schema_yaml = yaml.safe_load(file)
         sb_schema_yaml['app_content']['code_package'] = new_code_package

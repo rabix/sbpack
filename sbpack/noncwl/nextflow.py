@@ -1,14 +1,15 @@
 import re
-
 import ruamel.yaml
 import json
-import sbpack.lib as lib
 import argparse
-from nf_core.schema import PipelineSchema
 import logging
-from sbpack.version import __version__
 import os
 import yaml
+
+import sbpack.lib as lib
+
+from nf_core.schema import PipelineSchema
+from sbpack.version import __version__
 from sbpack.noncwl.utils import (
     zip_and_push_to_sb, get_readme, update_schema_code_package,
     install_or_upgrade_app, GENERIC_FILE_ARRAY_INPUT, WRAPPER_REQUIREMENTS)
@@ -41,7 +42,7 @@ class SBNextflowWrapper:
                                            NF_SCHEMA_DEFAULT_NAME)
         self.sb_doc = sb_doc
         self.executor_version = None
-        self.output_ymls = None
+        self.output_schemas = None
 
     @staticmethod
     def nf_schema_type_mapper(t):
@@ -169,18 +170,24 @@ class SBNextflowWrapper:
         sb_output = list()
         sb_output.extend(self.default_nf_sb_outputs())
 
-        if self.output_ymls:
-            for yml in self.output_ymls:
-                for output in self.parse_output_yml(yml):
-                    base_id = output['id']
-                    id_ = base_id
-                    i = 1
-                    while id_ in output_ids:
-                        id_ = f'{base_id}_{i}'
-                        i += 1
+        if self.output_schemas:
+            for file in self.output_schemas:
+                if file.name.split('.').pop().lower() in ['yml', 'yaml']:
+                    sb_output.extend(self.parse_output_yml(file))
+                if file.name.split('.').pop().lower() in ['json', 'cwl']:
+                    sb_output.extend(self.parse_output_json(file))
 
-                    output_ids.add(output['id'])
-                    sb_output.append(output)
+        for output in sb_output:
+            base_id = output['id']
+            id_ = base_id
+            i = 1
+            while id_ in output_ids:
+                id_ = f'{base_id}_{i}'
+                i += 1
+
+            output_ids.add(id_)
+            output['id'] = id_
+
         return sb_output
 
     def make_output_type(self, key, dict_, is_record=False):
@@ -265,6 +272,15 @@ class SBNextflowWrapper:
 
         return outputs
 
+    @staticmethod
+    def parse_output_json(json_file):
+        outputs = list()
+        json_schema = json.load(json_file)
+        if 'outputs' in json_schema:
+            outputs.append(json_schema['outputs'])
+
+        return outputs
+
     def dump_sb_wrapper(self, out_format='yaml'):
         """
         Dump SB wrapper for nextflow workflow to a file
@@ -282,14 +298,14 @@ class SBNextflowWrapper:
             self, sb_schema=None,
             sb_entrypoint='main.nf',
             executor_version=None,
-            output_ymls=None
+            output_schemas=None
     ):  # default nextflow entrypoint
         """
         Generate an SB app for a nextflow workflow, OR edit the one created and
         defined by the user
         """
-        if output_ymls:
-            self.output_ymls = output_ymls
+        if output_schemas:
+            self.output_schemas = output_schemas
 
         if sb_schema:
             new_code_package = self.sb_package_id if \
@@ -341,7 +357,7 @@ def main():
         "--entrypoint", required=True,
         help="Relative path to the workflow from the main workflow directory")
     parser.add_argument(
-        "--workflow-path", required=True,
+        "--workflow-path", required=False,
         help="Path to the main workflow directory")
     parser.add_argument(
         "--sb-package-id", required=False,
@@ -369,10 +385,20 @@ def main():
     parser.add_argument(
         "--output-schema-files", required=False,
         default=None, type=argparse.FileType('r'), nargs='+',
-        help="Additional output schema files in yaml format (ex. tower.yml)")
+        help="Additional output schema files in CWL or tower.yml format.")
+    parser.add_argument(
+        "--revision-note", required=False,
+        default=None, type=str, nargs="+",
+        help="Revision note to be placed in the CWL schema if the app is "
+             "uploaded to the sbg platform.")
 
     args = parser.parse_args()
-    print(args)
+
+    # Check for passable input combinations
+    # Either appid must be provided or dump-sb-app must be True
+    # Either workflow-path must be provided or git repo link
+    if not (args.workflow_path or args.git_repo):
+        raise Exception("Either workflow-path or git-repo must be provided.")
 
     # Preprocess CLI parameter values
 
@@ -424,7 +450,7 @@ def main():
         sb_app = nf_wrapper.generate_sb_app(
             sb_entrypoint=args.entrypoint,
             executor_version=args.executor_version,
-            output_ymls=args.output_schema_files
+            output_schemas=args.output_schema_files
         )
         # Dump app to local file
         out_format = 'json' if args.json else 'yaml'
@@ -432,11 +458,15 @@ def main():
 
     # Install app
     if not args.dump_sb_app:
+        revision_note = f"Uploaded using sbpack v{__version__}"
+
+        if args.revision_note:
+            revision_note = str(" ".join(args.revision_note))
 
         if not args.sb_schema:
             sb_app[
                 "sbg:revisionNotes"
-            ] = f"Uploaded using sbpack v{__version__}"
+            ] = revision_note
 
         install_or_upgrade_app(api, args.appid, sb_app)
 
