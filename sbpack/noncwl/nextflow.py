@@ -12,7 +12,8 @@ from nf_core.schema import PipelineSchema
 from sbpack.version import __version__
 from sbpack.noncwl.utils import (
     zip_and_push_to_sb, get_readme, update_schema_code_package,
-    install_or_upgrade_app, GENERIC_FILE_ARRAY_INPUT, WRAPPER_REQUIREMENTS)
+    install_or_upgrade_app, GENERIC_FILE_ARRAY_INPUT, GENERIC_OUTPUT_DIRECTORY,
+    WRAPPER_REQUIREMENTS)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -43,6 +44,7 @@ class SBNextflowWrapper:
         self.sb_doc = sb_doc
         self.executor_version = None
         self.output_schemas = None
+        self.input_schemas = None
 
     @staticmethod
     def nf_schema_type_mapper(t):
@@ -70,25 +72,6 @@ class SBNextflowWrapper:
             'description': 'label',
             'help_text': 'doc'
         }
-
-    @staticmethod
-    def default_nf_sb_outputs():
-        """
-        Default output for a Nextflow execution
-        """
-        return [
-            {
-                "id": "nf_workdir",
-                "label": "Work Directory",
-                "type": "Directory",
-                "doc": "This is a template output. "
-                       "Please change glob to directories specified in "
-                       "publishDir in the workflow.",
-                "outputBinding": {
-                    "glob": "work"
-                }
-            }
-        ]
 
     def nf_to_sb_input_mapper(self, port_id, port_data, required=False):
         """
@@ -159,7 +142,27 @@ class SBNextflowWrapper:
         for def_name, definition in nf_schema.get('definitions', {}).items():
             cwl_inputs.extend(
                 self.collect_nf_definition_properties(definition))
+
+        if self.input_schemas:
+            for file in self.input_schemas:
+                if file.name.split('.').pop().lower() in \
+                        ['yaml', 'yml', 'json', 'cwl']:
+                    cwl_inputs.extend(self.parse_cwl(file, 'inputs'))
+
         cwl_inputs.append(GENERIC_FILE_ARRAY_INPUT)
+
+        input_ids = set()
+        for inp in cwl_inputs:
+            base_id = inp['id']
+            id_ = base_id
+            i = 1
+            while id_ in input_ids:
+                id_ = f'{base_id}_{i}'
+                i += 1
+
+            input_ids.add(id_)
+            inp['id'] = id_
+
         return cwl_inputs
 
     def generate_sb_outputs(self):
@@ -167,17 +170,18 @@ class SBNextflowWrapper:
         Generate SB output schema
         """
         output_ids = set()
-        sb_output = list()
-        sb_output.extend(self.default_nf_sb_outputs())
+        cwl_outputs = list()
 
         if self.output_schemas:
             for file in self.output_schemas:
                 if file.name.split('.').pop().lower() in ['yml', 'yaml']:
-                    sb_output.extend(self.parse_output_yml(file))
+                    cwl_outputs.extend(self.parse_output_yml(file))
                 if file.name.split('.').pop().lower() in ['json', 'cwl']:
-                    sb_output.extend(self.parse_output_json(file))
+                    cwl_outputs.extend(self.parse_cwl(file, 'outputs'))
 
-        for output in sb_output:
+        cwl_outputs.append(GENERIC_OUTPUT_DIRECTORY)
+
+        for output in cwl_outputs:
             base_id = output['id']
             id_ = base_id
             i = 1
@@ -188,7 +192,7 @@ class SBNextflowWrapper:
             output_ids.add(id_)
             output['id'] = id_
 
-        return sb_output
+        return cwl_outputs
 
     def make_output_type(self, key, dict_, is_record=False):
         file_pattern = re.compile(r'.*\.(\w+)$')
@@ -273,13 +277,19 @@ class SBNextflowWrapper:
         return outputs
 
     @staticmethod
-    def parse_output_json(json_file):
-        outputs = list()
-        json_schema = json.load(json_file)
-        if 'outputs' in json_schema:
-            outputs.append(json_schema['outputs'])
+    def parse_cwl(input_file, return_key):
+        return_list = list()
+        schema = dict()
 
-        return outputs
+        try:
+            schema = yaml.safe_load(input_file)
+        except yaml.YAMLError:
+            logger.error("CWL schema not in JSON or YAML format")
+
+        if schema and return_key in schema:
+            return_list.extend(schema[return_key])
+
+        return return_list
 
     def dump_sb_wrapper(self, out_format='yaml'):
         """
@@ -298,7 +308,8 @@ class SBNextflowWrapper:
             self, sb_schema=None,
             sb_entrypoint='main.nf',
             executor_version=None,
-            output_schemas=None
+            output_schemas=None,
+            input_schemas=None
     ):  # default nextflow entrypoint
         """
         Generate an SB app for a nextflow workflow, OR edit the one created and
@@ -306,6 +317,8 @@ class SBNextflowWrapper:
         """
         if output_schemas:
             self.output_schemas = output_schemas
+        if input_schemas:
+            self.input_schemas = input_schemas
 
         if sb_schema:
             new_code_package = self.sb_package_id if \
@@ -320,7 +333,6 @@ class SBNextflowWrapper:
             self.sb_wrapper['class'] = 'nextflow'
 
             self.sb_wrapper['inputs'] = self.generate_sb_inputs()
-
             self.sb_wrapper['outputs'] = self.generate_sb_outputs()
             self.sb_wrapper['requirements'] = WRAPPER_REQUIREMENTS
 
@@ -387,6 +399,10 @@ def main():
         default=None, type=argparse.FileType('r'), nargs='+',
         help="Additional output schema files in CWL or tower.yml format.")
     parser.add_argument(
+        "--input-schema-files", required=False,
+        default=None, type=argparse.FileType('r'), nargs='+',
+        help="Additional input schema files in CWL format.")
+    parser.add_argument(
         "--revision-note", required=False,
         default=None, type=str, nargs="+",
         help="Revision note to be placed in the CWL schema if the app is "
@@ -450,7 +466,8 @@ def main():
         sb_app = nf_wrapper.generate_sb_app(
             sb_entrypoint=args.entrypoint,
             executor_version=args.executor_version,
-            output_schemas=args.output_schema_files
+            output_schemas=args.output_schema_files,
+            input_schemas=args.input_schema_files
         )
         # Dump app to local file
         out_format = 'json' if args.json else 'yaml'

@@ -21,6 +21,18 @@ GENERIC_FILE_ARRAY_INPUT = {
            "required for workflow execution."
 }
 
+GENERIC_OUTPUT_DIRECTORY = {
+    "id": "nf_workdir",
+    "label": "Work Directory",
+    "type": "Directory",
+    "doc": "This is a template output. "
+           "Please change glob to directories specified in "
+           "publishDir in the workflow.",
+    "outputBinding": {
+        "glob": "work"
+    }
+}
+
 # Requirements to be added to sb wrapper
 WRAPPER_REQUIREMENTS = [
     {
