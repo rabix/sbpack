@@ -11,7 +11,7 @@ import sbpack.lib as lib
 from nf_core.schema import PipelineSchema
 from sbpack.version import __version__
 from sbpack.noncwl.utils import (
-    zip_and_push_to_sb, get_readme, update_schema_code_package,
+    get_dict_depth, zip_and_push_to_sb, get_readme, update_schema_code_package,
     install_or_upgrade_app, GENERIC_FILE_ARRAY_INPUT, GENERIC_OUTPUT_DIRECTORY,
     WRAPPER_REQUIREMENTS)
 
@@ -20,16 +20,6 @@ logger.setLevel(logging.INFO)
 
 PACKAGE_SIZE_LIMIT = 100 * 1024 * 1024  # MB
 NF_SCHEMA_DEFAULT_NAME = 'nextflow_schema.json'
-
-
-def get_dict_depth(dict_, level=0):
-    n = level
-    for k, v in dict_.items():
-        if type(v) is dict:
-            lv = get_dict_depth(v, level + 1)
-            if lv > n:
-                n = lv
-    return n
 
 
 class SBNextflowWrapper:
@@ -369,7 +359,7 @@ def main():
         "--entrypoint", required=True,
         help="Relative path to the workflow from the main workflow directory")
     parser.add_argument(
-        "--workflow-path", required=False,
+        "--workflow-path", required=True,
         help="Path to the main workflow directory")
     parser.add_argument(
         "--sb-package-id", required=False,
@@ -409,12 +399,6 @@ def main():
              "uploaded to the sbg platform.")
 
     args = parser.parse_args()
-
-    # Check for passable input combinations
-    # Either appid must be provided or dump-sb-app must be True
-    # Either workflow-path must be provided or git repo link
-    if not (args.workflow_path or args.git_repo):
-        raise Exception("Either workflow-path or git-repo must be provided.")
 
     # Preprocess CLI parameter values
 

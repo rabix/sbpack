@@ -47,6 +47,25 @@ WRAPPER_REQUIREMENTS = [
 ]
 
 
+def get_dict_depth(dict_, level=0):
+    """
+    Find the depth of the dictionary. Example:
+    {'a': 1} - returns 0;
+    {'a': {'b': 2}} - returns 1...
+
+    :param dict_: input dictionary
+    :param level: depth of the outer dict
+    :return: int
+    """
+    n = level
+    for k, v in dict_.items():
+        if type(v) is dict:
+            lv = get_dict_depth(v, level + 1)
+            if lv > n:
+                n = lv
+    return n
+
+
 def zip_and_push_to_sb(api, workflow_path, project_id, folder_name):
     """
     Create .zip package file. Upload .zip file to the designated folder
