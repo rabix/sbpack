@@ -29,8 +29,7 @@ class SBNextflowWrapper:
         self.sb_package_id = None
         self.workflow_path = workflow_path
         self.dump_schema = dump_schema
-        self.nf_schema_path = os.path.join(workflow_path,
-                                           NF_SCHEMA_DEFAULT_NAME)
+        self.nf_schema_path = None
         self.sb_doc = sb_doc
         self.executor_version = None
         self.output_schemas = None
@@ -41,15 +40,24 @@ class SBNextflowWrapper:
         """
         Convert nextflow schema input type to CWL
         """
-        if t == 'string':
+        type_ = t.get('type', 'string')
+        format_ = t.get('format', '')
+        if type_ == 'string' and 'path' in format_:
+            if format_ == 'file-path':
+                return ['File']
+            if format_ == 'directory-path':
+                return ['Directory']
+            if format_ == 'path':
+                return ['File']
+        if type_ == 'string':
             return ['string']
-        if t == 'integer':
+        if type_ == 'integer':
             return ['int']
-        if t == 'number':
+        if type_ == 'number':
             return ['float']
-        if t == 'boolean':
+        if type_ == 'boolean':
             return ['boolean']
-        return [t]
+        return [type_]
 
     @staticmethod
     def nf_cwl_port_map():
@@ -69,8 +77,7 @@ class SBNextflowWrapper:
         """
         sb_input = dict()
         sb_input['id'] = port_id
-        sb_input['type'] = self.nf_schema_type_mapper(port_data.get(
-            'type', 'string'))
+        sb_input['type'] = self.nf_schema_type_mapper(port_data)
         if not required:
             sb_input['type'].append('null')
         for nf_field, sb_field in self.nf_cwl_port_map().items():
@@ -117,24 +124,50 @@ class SBNextflowWrapper:
             web_only=False,
             url=''
         )
+        return nf_schema_path
+
+    @staticmethod
+    def file_is_nf_schema(path):
+        try:
+            schema = ruamel.yaml.safe_load(path)
+            if 'definitions' not in schema:
+                return False
+            if type(schema['definitions']) is not dict:
+                return False
+            for value in schema['definitions'].values():
+                if 'properties' not in value:
+                    return False
+            else:
+                return True
+        except Exception as e:
+            return False
 
     def generate_sb_inputs(self):
         """
         Generate SB inputs schema
         """
-        with open(self.nf_schema_path, 'r') as f:
-            nf_schema = ruamel.yaml.safe_load(f)
-
         cwl_inputs = list()
-        for p_key, p_value in nf_schema.get('properties', {}).items():
-            cwl_inputs.append(
-                self.nf_to_sb_input_mapper(p_key, p_value))
-        for def_name, definition in nf_schema.get('definitions', {}).items():
-            cwl_inputs.extend(
-                self.collect_nf_definition_properties(definition))
+        nf_schemas = [
+            f for f in self.input_schemas if self.file_is_nf_schema(f)]
+
+        if nf_schemas:
+            self.nf_schema_path = nf_schemas.pop().name
+
+        if self.nf_schema_path:
+            with open(self.nf_schema_path, 'r') as f:
+                nf_schema = ruamel.yaml.safe_load(f)
+
+            for p_key, p_value in nf_schema.get('properties', {}).items():
+                cwl_inputs.append(
+                    self.nf_to_sb_input_mapper(p_key, p_value))
+            for def_name, definition in nf_schema.get('definitions', {}).items():
+                cwl_inputs.extend(
+                    self.collect_nf_definition_properties(definition))
 
         if self.input_schemas:
             for file in self.input_schemas:
+                if file.name == self.nf_schema_path:
+                    continue
                 if file.name.split('.').pop().lower() in \
                         ['yaml', 'yml', 'json', 'cwl']:
                     cwl_inputs.extend(self.parse_cwl(file, 'inputs'))
@@ -290,7 +323,7 @@ class SBNextflowWrapper:
         if out_format == 'yaml':
             with open(sb_wrapper_path, 'w') as f:
                 yaml.dump(self.sb_wrapper, f, indent=4, sort_keys=True)
-        elif out_format == 'json':
+        elif out_format == 'json' or out_format == 'cwl':
             with open(sb_wrapper_path, 'w') as f:
                 json.dump(self.sb_wrapper, f, indent=4, sort_keys=True)
 
@@ -445,7 +478,10 @@ def main():
             )
 
         # Build or update nextflow inputs schema
-        nf_wrapper.nf_schema_build()
+        if not args.input_schema_files:
+            nf_schema_path = nf_wrapper.nf_schema_build()
+            nf_wrapper.nf_schema_path = nf_schema_path
+
         # Create app
         sb_app = nf_wrapper.generate_sb_app(
             sb_entrypoint=args.entrypoint,
