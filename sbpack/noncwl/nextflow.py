@@ -12,8 +12,8 @@ from nf_core.schema import PipelineSchema
 from sbpack.version import __version__
 from sbpack.noncwl.utils import (
     get_dict_depth, zip_and_push_to_sb, get_readme, update_schema_code_package,
-    install_or_upgrade_app, GENERIC_FILE_ARRAY_INPUT, GENERIC_OUTPUT_DIRECTORY,
-    WRAPPER_REQUIREMENTS)
+    install_or_upgrade_app, validate_inputs, GENERIC_FILE_ARRAY_INPUT,
+    GENERIC_OUTPUT_DIRECTORY, WRAPPER_REQUIREMENTS)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -142,16 +142,17 @@ class SBNextflowWrapper:
         except Exception as e:
             return False
 
-    def generate_sb_inputs(self):
+    def generate_sb_inputs(self, manual_validation=False):
         """
         Generate SB inputs schema
         """
         cwl_inputs = list()
-        nf_schemas = [
-            f for f in self.input_schemas if self.file_is_nf_schema(f)]
+        if self.input_schemas:
+            nf_schemas = [
+                f for f in self.input_schemas if self.file_is_nf_schema(f)]
 
-        if nf_schemas:
-            self.nf_schema_path = nf_schemas.pop().name
+            if nf_schemas:
+                self.nf_schema_path = nf_schemas.pop().name
 
         if self.nf_schema_path:
             with open(self.nf_schema_path, 'r') as f:
@@ -186,6 +187,10 @@ class SBNextflowWrapper:
             input_ids.add(id_)
             inp['id'] = id_
 
+        if manual_validation:
+            print('Input validation')
+            cwl_inputs = validate_inputs(cwl_inputs)
+            print('Input validation completed')
         return cwl_inputs
 
     def generate_sb_outputs(self):
@@ -328,11 +333,9 @@ class SBNextflowWrapper:
                 json.dump(self.sb_wrapper, f, indent=4, sort_keys=True)
 
     def generate_sb_app(
-            self, sb_schema=None,
-            sb_entrypoint='main.nf',
-            executor_version=None,
-            output_schemas=None,
-            input_schemas=None
+            self, sb_schema=None, sb_entrypoint='main.nf',
+            executor_version=None, output_schemas=None, input_schemas=None,
+            manual_validation=False
     ):  # default nextflow entrypoint
         """
         Generate an SB app for a nextflow workflow, OR edit the one created and
@@ -355,7 +358,8 @@ class SBNextflowWrapper:
             self.sb_wrapper['cwlVersion'] = 'None'
             self.sb_wrapper['class'] = 'nextflow'
 
-            self.sb_wrapper['inputs'] = self.generate_sb_inputs()
+            self.sb_wrapper['inputs'] = self.generate_sb_inputs(
+                manual_validation)
             self.sb_wrapper['outputs'] = self.generate_sb_outputs()
             self.sb_wrapper['requirements'] = WRAPPER_REQUIREMENTS
 
@@ -430,6 +434,12 @@ def main():
         default=None, type=str, nargs="+",
         help="Revision note to be placed in the CWL schema if the app is "
              "uploaded to the sbg platform.")
+    parser.add_argument(
+        "--manual-validation", required=False, action="store_true",
+        default=False,
+        help="You will have to provide validation for all 'string' type inputs"
+             " if are string (s), file (f), directory (d), list of file (lf),"
+             " or list of directory (ld) type inputs.")
 
     args = parser.parse_args()
 
@@ -461,7 +471,8 @@ def main():
         sb_app = nf_wrapper.generate_sb_app(
             sb_entrypoint=args.entrypoint,
             sb_schema=args.sb_schema,
-            executor_version=args.executor_version
+            executor_version=args.executor_version,
+            manual_validation=args.manual_validation
         )
 
     else:
@@ -487,7 +498,8 @@ def main():
             sb_entrypoint=args.entrypoint,
             executor_version=args.executor_version,
             output_schemas=args.output_schema_files,
-            input_schemas=args.input_schema_files
+            input_schemas=args.input_schema_files,
+            manual_validation=args.manual_validation
         )
         # Dump app to local file
         out_format = 'json' if args.json else 'yaml'

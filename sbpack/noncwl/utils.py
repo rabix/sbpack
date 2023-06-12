@@ -16,7 +16,7 @@ PACKAGE_SIZE_LIMIT = 100 * 1024 * 1024
 GENERIC_FILE_ARRAY_INPUT = {
     "type": "File[]?",
     "id": "auxiliary_files",
-    "label": "Auxiliary files",
+    "label": "Auxiliary files",  # TODO: Add staging
     "doc": "List of files not added as explicit workflow inputs but "
            "required for workflow execution."
 }
@@ -43,8 +43,45 @@ WRAPPER_REQUIREMENTS = [
         "listing": [
             "$(inputs.auxiliary_files)"
         ]
-    }
+    },
+    # {  # TODO : Check if needed
+    #     "class": "ShellCommandRequirement"
+    # }
+    # TODO: Add CPU and MEM requirements
+    # TODO: Add functions for metadata inheritance
 ]
+
+
+def validate_inputs(inputs):
+    types = {
+        'str': 'string',
+        'file': 'File',
+        'dir': 'Directory',
+        'files': 'File[]',
+        'dirs': 'Directory[]'
+    }
+    exit_codes = ['e', 'exit', 'quit', 'q']
+
+    for input_ in inputs:
+        if 'string' in input_['type']:
+            new_type = input(f'What input type is "{input_["id"]}"?\n')
+            while new_type.lower() not in \
+                    list(types.keys()) + exit_codes:
+                print(
+                    f'{new_type} is not a valid input. Please use the '
+                    f'following notation:')
+                for key, val in types.items():
+                    print(f"\t{key}: {val}")
+                new_type = input()
+            if new_type in exit_codes:
+                break
+
+            nt = types[new_type]
+            input_['type'].remove('string')
+            if 'null' in input_['type']:
+                nt += '?'
+            input_['type'] = nt
+    return inputs
 
 
 def get_dict_depth(dict_, level=0):
