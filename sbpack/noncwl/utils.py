@@ -16,7 +16,7 @@ PACKAGE_SIZE_LIMIT = 100 * 1024 * 1024
 GENERIC_FILE_ARRAY_INPUT = {
     "type": "File[]?",
     "id": "auxiliary_files",
-    "label": "Auxiliary files",  # TODO: Add staging
+    "label": "Auxiliary files",
     "doc": "List of files not added as explicit workflow inputs but "
            "required for workflow execution."
 }
@@ -43,12 +43,7 @@ WRAPPER_REQUIREMENTS = [
         "listing": [
             "$(inputs.auxiliary_files)"
         ]
-    },
-    # {  # TODO : Check if needed
-    #     "class": "ShellCommandRequirement"
-    # }
-    # TODO: Add CPU and MEM requirements
-    # TODO: Add functions for metadata inheritance
+    }
 ]
 
 

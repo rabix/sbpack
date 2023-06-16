@@ -161,7 +161,8 @@ class SBNextflowWrapper:
             for p_key, p_value in nf_schema.get('properties', {}).items():
                 cwl_inputs.append(
                     self.nf_to_sb_input_mapper(p_key, p_value))
-            for def_name, definition in nf_schema.get('definitions', {}).items():
+            for def_name, definition in nf_schema.get(
+                    'definitions', {}).items():
                 cwl_inputs.extend(
                     self.collect_nf_definition_properties(definition))
 
