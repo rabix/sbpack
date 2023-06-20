@@ -21,6 +21,18 @@ GENERIC_FILE_ARRAY_INPUT = {
            "required for workflow execution."
 }
 
+GENERIC_OUTPUT_DIRECTORY = {
+    "id": "nf_workdir",
+    "label": "Work Directory",
+    "type": "Directory",
+    "doc": "This is a template output. "
+           "Please change glob to directories specified in "
+           "publishDir in the workflow.",
+    "outputBinding": {
+        "glob": "work"
+    }
+}
+
 # Requirements to be added to sb wrapper
 WRAPPER_REQUIREMENTS = [
     {
@@ -33,6 +45,57 @@ WRAPPER_REQUIREMENTS = [
         ]
     }
 ]
+
+
+def validate_inputs(inputs):
+    types = {
+        'str': 'string',
+        'file': 'File',
+        'dir': 'Directory',
+        'files': 'File[]',
+        'dirs': 'Directory[]'
+    }
+    exit_codes = ['e', 'exit', 'quit', 'q']
+
+    for input_ in inputs:
+        if 'string' in input_['type']:
+            new_type = input(f'What input type is "{input_["id"]}"?\n')
+            while new_type.lower() not in \
+                    list(types.keys()) + exit_codes:
+                print(
+                    f'{new_type} is not a valid input. Please use the '
+                    f'following notation:')
+                for key, val in types.items():
+                    print(f"\t{key}: {val}")
+                new_type = input()
+            if new_type in exit_codes:
+                break
+
+            nt = types[new_type]
+            input_['type'].remove('string')
+            if 'null' in input_['type']:
+                nt += '?'
+            input_['type'] = nt
+    return inputs
+
+
+def get_dict_depth(dict_, level=0):
+    """
+    Find the depth of the dictionary. Example:
+    {'a': 1} - returns 0;
+    {'a': {'b': 2}} - returns 1...
+
+    :param dict_: input dictionary
+    :param level: depth of the outer dict
+    :return: int
+    """
+    n = level
+    for k, v in dict_.items():
+        if type(v) is dict:
+            lv = get_dict_depth(v, level + 1)
+            if lv > n:
+                n = lv
+    return n
 
 
 def zip_and_push_to_sb(api, workflow_path, project_id, folder_name):
@@ -90,7 +153,7 @@ def update_schema_code_package(sb_schema, schema_ext, new_code_package):
     """
     Update the package in the sb_schema
     """
-    if schema_ext == 'json':
+    if schema_ext.lower() in ['json', 'cwl']:
         with open(sb_schema, 'r') as file:
             sb_schema_json = json.load(file)
         sb_schema_json['app_content']['code_package'] = new_code_package
@@ -99,7 +162,7 @@ def update_schema_code_package(sb_schema, schema_ext, new_code_package):
 
         return sb_schema_json
 
-    elif schema_ext == 'yaml':
+    elif schema_ext.lower() in ['yaml', 'yml']:
         with open(sb_schema, 'r') as file:
             sb_schema_yaml = yaml.safe_load(file)
         sb_schema_yaml['app_content']['code_package'] = new_code_package
