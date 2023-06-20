@@ -11,9 +11,16 @@ import sbpack.lib as lib
 from nf_core.schema import PipelineSchema
 from sbpack.version import __version__
 from sbpack.noncwl.utils import (
-    get_dict_depth, zip_and_push_to_sb, get_readme, update_schema_code_package,
-    install_or_upgrade_app, validate_inputs, GENERIC_FILE_ARRAY_INPUT,
-    GENERIC_OUTPUT_DIRECTORY, WRAPPER_REQUIREMENTS)
+    get_dict_depth,
+    zip_and_push_to_sb,
+    get_readme,
+    update_schema_code_package,
+    install_or_upgrade_app,
+    validate_inputs,
+    GENERIC_FILE_ARRAY_INPUT,
+    GENERIC_OUTPUT_DIRECTORY,
+    WRAPPER_REQUIREMENTS,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -36,12 +43,12 @@ class SBNextflowWrapper:
         self.input_schemas = None
 
     @staticmethod
-    def nf_schema_type_mapper(t):
+    def nf_schema_type_mapper(input_type_string):
         """
         Convert nextflow schema input type to CWL
         """
-        type_ = t.get('type', 'string')
-        format_ = t.get('format', '')
+        type_ = input_type_string.get('type', 'string')
+        format_ = input_type_string.get('format', '')
         if type_ == 'string' and 'path' in format_:
             if format_ == 'file-path':
                 return ['File']
@@ -68,7 +75,7 @@ class SBNextflowWrapper:
         return {
             'default': 'sbg:toolDefaultValue',
             'description': 'label',
-            'help_text': 'doc'
+            'help_text': 'doc',
         }
 
     def nf_to_sb_input_mapper(self, port_id, port_data, required=False):
@@ -84,7 +91,7 @@ class SBNextflowWrapper:
             if nf_field in port_data:
                 sb_input[sb_field] = port_data[nf_field]
         sb_input['inputBinding'] = {
-            'prefix': f'--{port_id}'
+            'prefix': f'--{port_id}',
         }
         return sb_input
 
@@ -98,7 +105,7 @@ class SBNextflowWrapper:
             cwl_inputs.append(self.nf_to_sb_input_mapper(
                 port_id,
                 port_data,
-                required=port_id in definition.get('required', []))
+                required=port_id in definition.get('required', [])),
             )
             # Nextflow schema field "required" lists input_ids
             # for required inputs
@@ -111,7 +118,7 @@ class SBNextflowWrapper:
         """
         nf_schema_path = os.path.join(
             self.workflow_path,
-            NF_SCHEMA_DEFAULT_NAME
+            NF_SCHEMA_DEFAULT_NAME,
         )
 
         # if the file doesn't exist, nf-core raises exception and logs
@@ -122,7 +129,7 @@ class SBNextflowWrapper:
             pipeline_dir=self.workflow_path,
             no_prompts=True,
             web_only=False,
-            url=''
+            url='',
         )
         return nf_schema_path
 
@@ -140,6 +147,7 @@ class SBNextflowWrapper:
             else:
                 return True
         except Exception as e:
+            logger.info(f"File {path} is not an nf schema file (due to {e})")
             return False
 
     def generate_sb_inputs(self, manual_validation=False):
@@ -149,7 +157,8 @@ class SBNextflowWrapper:
         cwl_inputs = list()
         if self.input_schemas:
             nf_schemas = [
-                f for f in self.input_schemas if self.file_is_nf_schema(f)]
+                f for f in self.input_schemas if self.file_is_nf_schema(f)
+            ]
 
             if nf_schemas:
                 self.nf_schema_path = nf_schemas.pop().name
@@ -223,56 +232,73 @@ class SBNextflowWrapper:
 
         return cwl_outputs
 
-    def make_output_type(self, key, dict_, is_record=False):
+    def make_output_type(self, key, output_dict, is_record=False):
+        """
+        This creates an output of specific type based on information provided
+        through output_dict.
+
+        :param key:
+        :param output_dict:
+        :param is_record:
+        :return:
+        """
+
+        converted_cwl_output = dict()
+
         file_pattern = re.compile(r'.*\.(\w+)$')
         folder_pattern = re.compile(r'[^.]+$')
         id_key = 'id'
-
-        output = dict()
 
         if is_record:
             id_key = 'name'
 
         name = key
-        if 'display' in dict_:
-            name = dict_['display']
+        if 'display' in output_dict:
+            name = output_dict['display']
 
-        id_ = re.sub(r'[^a-zA-Z0-9_]', "", name.replace(
+        clean_id = re.sub(r'[^a-zA-Z0-9_]', "", name.replace(
             " ", "_")).lower()
 
-        if get_dict_depth(dict_) > 0:
-            # this is a record
+        # Case 1: Output is a Record-type
+        if get_dict_depth(output_dict) > 0:
+            # this is a record, go through the dict_ recursively
             fields = [self.make_output_type(key, val, is_record=True)
-                      for key, val in dict_.items()]
-            field_ids = set()
+                      for key, val in output_dict.items()]
+
+            used_field_ids = set()
 
             for field in fields:
-                base_field_id = field['name']
+                base_field_id = field.get('name', 'Output')
+
+                # Since name fields can be the same for multiple inputs,
+                # correct the name if it has already been used.
                 chk_id = base_field_id
                 i = 1
-                if chk_id in field_ids:
+                if chk_id in used_field_ids:
                     chk_id = f"{base_field_id}_{i}"
                     i += 1
-                field_ids.add(chk_id)
+                used_field_ids.add(chk_id)
+
                 field['name'] = chk_id
 
-            output = {
-                id_key: id_,
+            converted_cwl_output = {
+                id_key: clean_id,
                 "label": name,
                 "type": [
                     "null",
                     {
                         "type": "record",
                         "fields": fields,
-                        "name": id_
+                        "name": clean_id
                     }
                 ]
             }
 
+        # Case 2: Output is a File type
         elif re.fullmatch(file_pattern, key):
-            # this is a list of files
-            output = {
-                id_key: id_,
+            # create a list of files outptu
+            converted_cwl_output = {
+                id_key: clean_id,
                 "label": name,
                 "type": "File[]?",
                 "outputBinding": {
@@ -280,10 +306,11 @@ class SBNextflowWrapper:
                 }
             }
 
+        # Case 3: Output is a folder type
         elif re.fullmatch(folder_pattern, key):
-            # this is a list of directories
-            output = {
-                id_key: id_,
+            # create a list of directories output
+            converted_cwl_output = {
+                id_key: clean_id,
                 "label": name,
                 "type": "Directory[]?",
                 "outputBinding": {
@@ -291,13 +318,19 @@ class SBNextflowWrapper:
                     "loadListing": "deep_listing"
                 }
             }
-        return output
+        return converted_cwl_output
 
     def parse_output_yml(self, yml_file):
+        """
+        Extracts output information from a YAML file, usually in tower.yml
+        format.
+
+        :param yml_file: path to YAML file.
+        :return: list of outputs in CWL format.
+        """
         outputs = list()
         yml_schema = ruamel.yaml.safe_load(yml_file)
 
-        # handle tower.yml
         for key, value in yml_schema.items():
             outputs.append(
                 self.make_output_type(key, value)
@@ -306,12 +339,19 @@ class SBNextflowWrapper:
         return outputs
 
     @staticmethod
-    def parse_cwl(input_file, return_key):
+    def parse_cwl(file, return_key):
+        """
+        Subset CWL based on return_key provided.
+
+        :param file: Path to the CWL file.
+        :param return_key: Key to subset the CWL with.
+        :return:
+        """
         return_list = list()
         schema = dict()
 
         try:
-            schema = yaml.safe_load(input_file)
+            schema = yaml.safe_load(file)
         except yaml.YAMLError:
             logger.error("CWL schema not in JSON or YAML format")
 
@@ -360,7 +400,8 @@ class SBNextflowWrapper:
             self.sb_wrapper['class'] = 'nextflow'
 
             self.sb_wrapper['inputs'] = self.generate_sb_inputs(
-                manual_validation)
+                manual_validation
+            )
             self.sb_wrapper['outputs'] = self.generate_sb_outputs()
             self.sb_wrapper['requirements'] = WRAPPER_REQUIREMENTS
 
@@ -384,63 +425,77 @@ class SBNextflowWrapper:
 
 
 def main():
-    pass
     # CLI parameters
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--profile", default="default",
-        help="SB platform profile as set in the SB API credentials file.")
+        help="SB platform profile as set in the SB API credentials file.",
+    )
     parser.add_argument(
         "--appid", required=True,
-        help="Takes the form {user or division}/{project}/{app_id}.")
+        help="Takes the form {user or division}/{project}/{app_id}.",
+    )
     parser.add_argument(
         "--entrypoint", required=True,
-        help="Relative path to the workflow from the main workflow directory")
+        help="Relative path to the workflow from the main workflow directory",
+    )
     parser.add_argument(
         "--workflow-path", required=True,
-        help="Path to the main workflow directory")
+        help="Path to the main workflow directory",
+    )
     parser.add_argument(
         "--sb-package-id", required=False,
-        help="Id of an already uploaded package")
+        help="Id of an already uploaded package",
+    )
     parser.add_argument(
         "--sb-doc", required=False,
         help="Path to a doc file for sb app. If not provided, README.md "
-             "will be used if available")
+             "will be used if available",
+    )
     parser.add_argument(
         "--dump-sb-app", action="store_true", required=False,
-        help="Dump created sb app to file if true and exit")
+        help="Dump created sb app to file if true and exit",
+    )
     parser.add_argument(
         "--no-package", action="store_true", required=False,
-        help="Only provide a sb app schema and a git URL for entrypoint")
+        help="Only provide a sb app schema and a git URL for entrypoint",
+    )
     parser.add_argument(
         "--executor-version", required=False,
-        help="Version of the Nextflow executor to be used with the app.")
+        help="Version of the Nextflow executor to be used with the app.",
+    )
     parser.add_argument(
         "--json", action="store_true", required=False,
-        help="Dump sb app schema in JSON format (YAML by default)")
+        help="Dump sb app schema in JSON format (YAML by default)",
+    )
     parser.add_argument(
         "--sb-schema", required=False,
         help="Do not create new schema, use this schema file. "
-             "It is sb_nextflow_schema in JSON or YAML format.")
+             "It is sb_nextflow_schema in JSON or YAML format.",
+    )
     parser.add_argument(
         "--output-schema-files", required=False,
         default=None, type=argparse.FileType('r'), nargs='+',
-        help="Additional output schema files in CWL or tower.yml format.")
+        help="Additional output schema files in CWL or tower.yml format.",
+    )
     parser.add_argument(
         "--input-schema-files", required=False,
         default=None, type=argparse.FileType('r'), nargs='+',
-        help="Additional input schema files in CWL format.")
+        help="Additional input schema files in CWL format.",
+    )
     parser.add_argument(
         "--revision-note", required=False,
         default=None, type=str, nargs="+",
         help="Revision note to be placed in the CWL schema if the app is "
-             "uploaded to the sbg platform.")
+             "uploaded to the sbg platform.",
+    )
     parser.add_argument(
         "--manual-validation", required=False, action="store_true",
         default=False,
         help="You will have to provide validation for all 'string' type inputs"
              " if are string (s), file (f), directory (d), list of file (lf),"
-             " or list of directory (ld) type inputs.")
+             " or list of directory (ld) type inputs.",
+    )
 
     args = parser.parse_args()
 
@@ -481,11 +536,11 @@ def main():
         if args.sb_package_id:
             nf_wrapper.sb_package_id = args.sb_package_id
         elif not args.no_package:
-            projectid = '/'.join(args.appid.split('/')[:2])
+            project_id = '/'.join(args.appid.split('/')[:2])
             nf_wrapper.sb_package_id = zip_and_push_to_sb(
                 api=api,
                 workflow_path=args.workflow_path,
-                project_id=projectid,
+                project_id=project_id,
                 folder_name='nextflow_workflows'
             )
 
@@ -514,9 +569,7 @@ def main():
             revision_note = str(" ".join(args.revision_note))
 
         if not args.sb_schema:
-            sb_app[
-                "sbg:revisionNotes"
-            ] = revision_note
+            sb_app["sbg:revisionNotes"] = revision_note
 
         install_or_upgrade_app(api, args.appid, sb_app)
 
