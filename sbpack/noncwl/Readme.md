@@ -78,11 +78,11 @@ optional arguments:
   --json                Dump sb app schema in JSON format (YAML by default)
   --sb-schema SB_SCHEMA
                         Do not create new schema, use this schema file. It is sb_nextflow_schema in JSON or YAML format.
-  --output-schema-files SCHEMA_PATH_1 SCHEMA_PATH_2
+  --output-schema-files OUTPUT_SCHEMA_FILES [OUTPUT_SCHEMA_FILES ...]
                         Additional output schema files in CWL or tower.yml format.
-  --input-schema-files SCHEMA_PATH_1 SCHEMA_PATH_2
+  --input-schema-files INPUT_SCHEMA_FILES [INPUT_SCHEMA_FILES ...]
                         Additional input schema files in CWL format.
-  --revision-note REVISION_NOTE
+  --revision-note REVISION_NOTE [REVISION_NOTE ...]
                         Revision note to be placed in the CWL schema if the app is uploaded to the sbg platform.
   --manual-validation   You will have to provide validation for all 'string' type inputs if are string (s), file (f), directory (d), list of file (lf), or list of directory (ld) type inputs.
 
