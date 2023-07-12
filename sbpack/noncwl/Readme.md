@@ -84,7 +84,7 @@ optional arguments:
                         Additional input schema files in CWL format.
   --revision-note REVISION_NOTE [REVISION_NOTE ...]
                         Revision note to be placed in the CWL schema if the app is uploaded to the sbg platform.
-  --manual-validation   You will have to provide validation for all 'string' type inputs if are string (s), file (f), directory (d), list of file (lf), or list of directory (ld) type inputs.
+  --manual-validation   You will have to provide validation for all 'string' type inputs if are string (str), file (file), directory (dir), list of file (files), or list of directory (dirs) type inputs.
 
 ```
 ### Example
