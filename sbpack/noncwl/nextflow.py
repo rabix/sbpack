@@ -20,6 +20,7 @@ from sbpack.noncwl.utils import (
     GENERIC_FILE_ARRAY_INPUT,
     GENERIC_OUTPUT_DIRECTORY,
     WRAPPER_REQUIREMENTS,
+    SKIP_NEXTFLOW_TOWER_KEYS,
 )
 
 logger = logging.getLogger(__name__)
@@ -332,6 +333,12 @@ class SBNextflowWrapper:
         yml_schema = ruamel.yaml.safe_load(yml_file)
 
         for key, value in yml_schema.items():
+            # Tower yml file can use "tower" key in the yml file to designate
+            # some of the configurations tower uses. Since these are not output
+            # definitions, we skip these.
+            if key in SKIP_NEXTFLOW_TOWER_KEYS and \
+                    yml_file == 'tower.yml':
+                continue
             outputs.append(
                 self.make_output_type(key, value)
             )
@@ -493,8 +500,8 @@ def main():
         "--manual-validation", required=False, action="store_true",
         default=False,
         help="You will have to provide validation for all 'string' type inputs"
-             " if are string (s), file (f), directory (d), list of file (lf),"
-             " or list of directory (ld) type inputs.",
+             " if are string (str), file (file), directory (dir), list of file"
+             " (files), or list of directory (dirs) type inputs.",
     )
 
     args = parser.parse_args()
