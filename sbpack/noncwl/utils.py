@@ -47,6 +47,12 @@ WRAPPER_REQUIREMENTS = [
 ]
 
 
+SKIP_NEXTFLOW_TOWER_KEYS = [
+    'tower',
+    'mail',
+]
+
+
 def validate_inputs(inputs):
     types = {
         'str': 'string',
@@ -104,7 +110,7 @@ def zip_and_push_to_sb(api, workflow_path, project_id, folder_name):
     for packages on SevenBridges Platform. Delete local .zip file.
     """
 
-    basename = os.path.basename(workflow_path) + '_' + \
+    basename = os.path.basename(os.path.abspath(workflow_path)) + '_' + \
                time.strftime("%Y%m%d-%H%M%S")
 
     zip_path = os.path.join(os.path.dirname(workflow_path), basename + '.zip')
