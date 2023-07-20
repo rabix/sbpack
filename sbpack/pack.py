@@ -381,7 +381,7 @@ def update_registry(new_docker_registry, cwl):
     if isinstance(cwl, dict):
         for k, v in cwl.items():
             if k == "dockerPull":
-                print(v)
+                cwl[k] = f"{new_docker_registry}/{v}"
             elif isinstance(v, dict):
                 update_registry(new_docker_registry, v)
             elif isinstance(v, list):
