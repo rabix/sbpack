@@ -424,7 +424,7 @@ def main():
 
     cwl = pack(cwl_path, filter_non_sbg_tags=args.filter_non_sbg_tags)
     if args.update_docker_registry:
-        cwl = update_registry(args.update_docker_registry, cwl)
+        update_registry(args.update_docker_registry, cwl)
 
     if args.pack_only:
         if args.json:
