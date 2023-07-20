@@ -374,8 +374,30 @@ def pack(cwl_path: str, filter_non_sbg_tags=False, add_ids=False):
 
     return cwl
 
+def _find_docker_pull(d):
+    if isinstance(d, dict):
+        for k, v in d.items():
+            if k == "dockerPull":
+                print(v)
+            elif isinstance(v, dict):
+                _find_docker_pull(v)
+            elif isinstance(v, list):
+                for item in v:
+                    _find_docker_pull(item)
+
 def update_registry(new_docker_registry, cwl):
-    return cwl
+    '''
+    Walk through entire cwl and update references for dockerPull 
+    '''
+    if isinstance(cwl, dict):
+        for k, v in cwl.items():
+            if k == "dockerPull":
+                print(v)
+            elif isinstance(v, dict):
+                _find_docker_pull(v)
+            elif isinstance(v, list):
+                for item in v:
+                    _find_docker_pull(item)
 
 def main():
 
