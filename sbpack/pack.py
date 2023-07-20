@@ -375,7 +375,7 @@ def pack(cwl_path: str, filter_non_sbg_tags=False, add_ids=False):
     return cwl
 
 def update_registry(new_docker_registry, cwl):
-
+    return cwl
 
 def main():
 
