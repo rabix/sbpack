@@ -4,6 +4,7 @@ import shutil
 import logging
 import json
 import yaml
+import re
 from sevenbridges.errors import NotFound
 
 logger = logging.getLogger(__name__)
@@ -14,8 +15,8 @@ PACKAGE_SIZE_LIMIT = 100 * 1024 * 1024
 # A generic SB input array of files that should be available on the
 # instance but are not explicitly provided to the execution as wdl params.
 GENERIC_FILE_ARRAY_INPUT = {
-    "type": "File[]?",
     "id": "auxiliary_files",
+    "type": "File[]?",
     "label": "Auxiliary files",
     "doc": "List of files not added as explicit workflow inputs but "
            "required for workflow execution."
@@ -23,8 +24,8 @@ GENERIC_FILE_ARRAY_INPUT = {
 
 GENERIC_OUTPUT_DIRECTORY = {
     "id": "nf_workdir",
+    "type": "Directory?",
     "label": "Work Directory",
-    "type": "Directory",
     "doc": "This is a template output. "
            "Please change glob to directories specified in "
            "publishDir in the workflow.",
@@ -47,19 +48,50 @@ WRAPPER_REQUIREMENTS = [
 ]
 
 
+# Keys that should be skipped when parsing nextflow tower yaml file
 SKIP_NEXTFLOW_TOWER_KEYS = [
     'tower',
     'mail',
 ]
 
 
+def create_profile_enum(profiles: list):
+    """
+    If profiles are defined in the config file, this input stores the profiles
+    They are added to the commandline as -profile foo,bar,foobar
+    :param profiles: list of profiles
+    :return: Profiles enum array input
+    """
+    return {
+        "id": "profile",
+        "type": [
+            "null",
+            {
+                "type": "array",
+                "items": {
+                    "type": "enum",
+                    "name": "profile",
+                    "symbols": profiles
+                }
+            }
+        ],
+        "label": "Profiles",
+        "doc": "Select which profile(s) you want to use for task execution.",
+        "inputBinding": {
+            "prefix": "-profile",
+            "itemSeparator": ",",
+            "shellQuote": False,
+        }
+    }
+
+
 def validate_inputs(inputs):
     types = {
-        'str': 'string',
-        'file': 'File',
-        'dir': 'Directory',
-        'files': 'File[]',
-        'dirs': 'Directory[]'
+        'str': 'string?',
+        'file': 'File?',
+        'dir': 'Directory?',
+        'files': 'File[]?',
+        'dirs': 'Directory[]?'
     }
     exit_codes = ['e', 'exit', 'quit', 'q']
 
@@ -78,9 +110,6 @@ def validate_inputs(inputs):
                 break
 
             nt = types[new_type]
-            input_['type'].remove('string')
-            if 'null' in input_['type']:
-                nt += '?'
             input_['type'] = nt
     return inputs
 
@@ -111,7 +140,7 @@ def zip_and_push_to_sb(api, workflow_path, project_id, folder_name):
     """
 
     basename = os.path.basename(os.path.abspath(workflow_path)) + '_' + \
-               time.strftime("%Y%m%d-%H%M%S")
+        time.strftime("%Y%m%d-%H%M%S")
 
     zip_path = os.path.join(os.path.dirname(workflow_path), basename + '.zip')
     shutil.make_archive(zip_path[:-4], 'zip', root_dir=workflow_path,
@@ -121,8 +150,11 @@ def zip_and_push_to_sb(api, workflow_path, project_id, folder_name):
         logger.error(f"File size too big: {os.path.getsize(zip_path)}")
         raise FileExistsError  # Add the right error
 
-    folder_found = list(api.files.query(project=project_id, names=[folder_name],
-                                        limit=100).all())
+    folder_found = list(api.files.query(
+        project=project_id,
+        names=[folder_name],
+        limit=100,
+    ).all())
 
     if not folder_found:
         folder_created = api.files.create_folder(
@@ -133,7 +165,8 @@ def zip_and_push_to_sb(api, workflow_path, project_id, folder_name):
     else:
         folder_id = folder_found[0].id
 
-    print(f'Uploading file {zip_path}, please wait for the upload to complete.')
+    print(f'Uploading file {zip_path}, '
+          f'please wait for the upload to complete.')
     u = api.files.upload(zip_path, parent=folder_id, overwrite=False)
 
     uploaded_file_id = u.result().id
@@ -153,6 +186,80 @@ def get_readme(path):
         if file.lower() == 'readme.md':
             return os.path.join(path, file)
     return None
+
+
+def get_tower_yml(path):
+    """
+    Find tower.yml file is there is one in the path folder
+    """
+    for file in os.listdir(path):
+        if file.lower() == 'tower.yml':
+            return os.path.join(path, file)
+    return None
+
+
+def get_entrypoint(path):
+    """
+    Auto find main.nf or similar file is there is one in the path folder.
+    """
+    possible_paths = []
+    for file in os.listdir(path):
+        if file.lower() == 'main.nf':
+            return file
+
+        if file.lower().endswith('.nf'):
+            possible_paths.append(file)
+
+    if possible_paths:
+        return possible_paths.pop()
+    return None
+
+
+def get_config_files(path):
+    """
+    Auto find config files.
+    """
+    paths = []
+    for file in os.listdir(path):
+        if file.lower().endswith('.config'):
+            paths.append(os.path.join(path, file))
+    return paths or None
+
+
+def parse_config_file(file_path):
+    profiles_text = ""
+
+    with open(file_path, 'r') as file:
+        found_profiles = False
+        brackets = 0
+
+        for line in file.readlines():
+            if found_profiles:
+                profiles_text += line
+                brackets += line.count("{") - line.count("}")
+
+            if brackets < 0:
+                break
+
+            if re.findall(r'profiles\s+\{', line):
+                profiles_text += "{\n"
+                found_profiles = True
+
+    # Extract profiles using regex
+    profiles = {}
+    pattern = re.compile(r'^\s*(\w+)\s*{([^}]+)}', re.MULTILINE | re.DOTALL)
+    blocks = re.findall(pattern, profiles_text)
+    for name, content in blocks:
+        settings = dict(re.findall(r'\s*([a-zA-Z.]+)\s*=\s*(.*)', content))
+        profiles[name] = settings
+        include_path = re.findall(
+            r'includeConfig\s+[\'\"]([a-zA-Z_.\\/]+)[\'\"]', content)
+        if include_path:
+            profiles[name]['includeConfig'] = include_path
+
+    # return currently returns includeConfig and settings, which are not used
+    # but could be used in the future versions of sbpack
+    return profiles
 
 
 def update_schema_code_package(sb_schema, schema_ext, new_code_package):
