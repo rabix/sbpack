@@ -468,12 +468,15 @@ def main():
         help="Takes the form {user or division}/{project}/{app_id}.",
     )
     parser.add_argument(
-        "--entrypoint", required=False,
-        help="Relative path to the workflow from the main workflow directory",
-    )
-    parser.add_argument(
         "--workflow-path", required=True,
         help="Path to the main workflow directory",
+    )
+    parser.add_argument(
+        "--entrypoint", required=False,
+        help="Relative path to the workflow from the main workflow directory. "
+             "If not provided, 'main.nf' will be used if available. "
+             "If not available, any '.nf' located in the workflow-path will "
+             "be used.",
     )
     parser.add_argument(
         "--sb-package-id", required=False,
