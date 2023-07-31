@@ -475,8 +475,9 @@ def main():
         "--entrypoint", required=False,
         help="Relative path to the workflow from the main workflow directory. "
              "If not provided, 'main.nf' will be used if available. "
-             "If not available, any '.nf' located in the workflow-path will "
-             "be used.",
+             "If not available, but a single '*.nf' is located in the "
+             "workflow-path will be used. If more than one '*.nf' script is "
+             "detected, an error is raised.",
     )
     parser.add_argument(
         "--sb-package-id", required=False,

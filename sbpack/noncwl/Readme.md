@@ -15,7 +15,7 @@ optional arguments:
   --profile PROFILE     SB platform profile as set in the SB API credentials file.
   --appid APPID         Takes the form {user or division}/{project}/{app_id}.
   --entrypoint ENTRYPOINT
-                        Relative path to the workflow from the main workflow directory
+                        Relative path to the workflow from the main workflow directory. If not provided, 'main.nf' will be used if available. If not available, but a single '*.nf' is located in the workflow-path will be used. If more than one '*.nf' script is detected, an error is raised.
   --workflow-path WORKFLOW_PATH
                         Path to the main workflow directory
   --sb-package-id SB_PACKAGE_ID

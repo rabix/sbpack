@@ -153,7 +153,6 @@ def zip_and_push_to_sb(api, workflow_path, project_id, folder_name):
     folder_found = list(api.files.query(
         project=project_id,
         names=[folder_name],
-        limit=100,
     ).all())
 
     if not folder_found:
@@ -210,9 +209,15 @@ def get_entrypoint(path):
         if file.lower().endswith('.nf'):
             possible_paths.append(file)
 
-    if possible_paths:
+    if len(possible_paths) > 1:
+        raise Exception(
+            'Detected more than 1 nextflow file in the root of the '
+            'workflow-path. Please use `--entrypoint` to specify which script '
+            'you want to use as the workflow entrypoint')
+    elif len(possible_paths) == 1:
         return possible_paths.pop()
-    return None
+    else:
+        return None
 
 
 def get_config_files(path):
@@ -230,10 +235,16 @@ def parse_config_file(file_path):
     profiles_text = ""
 
     with open(file_path, 'r') as file:
+        config = file.read()
+
+        trace_pattern = re.compile(r"trace\s\{.*}", re.MULTILINE | re.DOTALL)
+        if re.findall(trace_pattern, config):
+            logger.warning("Detected `trace` in nextflow config. This "
+                           "functionality is currently not supported.")
         found_profiles = False
         brackets = 0
 
-        for line in file.readlines():
+        for line in config.split("\n"):
             if found_profiles:
                 profiles_text += line
                 brackets += line.count("{") - line.count("}")
@@ -266,7 +277,7 @@ def update_schema_code_package(sb_schema, schema_ext, new_code_package):
     """
     Update the package in the sb_schema
     """
-    if schema_ext.lower() in ['json', 'cwl']:
+    if schema_ext.lower() in ['json']:
         with open(sb_schema, 'r') as file:
             sb_schema_json = json.load(file)
         sb_schema_json['app_content']['code_package'] = new_code_package
@@ -275,7 +286,7 @@ def update_schema_code_package(sb_schema, schema_ext, new_code_package):
 
         return sb_schema_json
 
-    elif schema_ext.lower() in ['yaml', 'yml']:
+    elif schema_ext.lower() in ['yaml', 'yml', 'cwl']:
         with open(sb_schema, 'r') as file:
             sb_schema_yaml = yaml.safe_load(file)
         sb_schema_yaml['app_content']['code_package'] = new_code_package
