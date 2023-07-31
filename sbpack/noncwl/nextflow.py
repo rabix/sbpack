@@ -26,6 +26,7 @@ from sbpack.noncwl.utils import (
     GENERIC_OUTPUT_DIRECTORY,
     WRAPPER_REQUIREMENTS,
     SKIP_NEXTFLOW_TOWER_KEYS,
+    EXTENSIONS,
 )
 
 logger = logging.getLogger(__name__)
@@ -189,7 +190,7 @@ class SBNextflowWrapper:
                 if file.name == self.nf_schema_path:
                     continue
                 if file.name.split('.').pop().lower() in \
-                        ['yaml', 'yml', 'json', 'cwl']:
+                        EXTENSIONS.all_:
                     cwl_inputs.extend(self.parse_cwl(file, 'inputs'))
 
         # Add profiles to the input
@@ -233,12 +234,15 @@ class SBNextflowWrapper:
 
         if self.output_schemas:
             for file in self.output_schemas:
-                if file.name.split('.').pop().lower() in ['yml', 'yaml']:
+                if file.name.split('.').pop().lower() in EXTENSIONS.yaml_all:
                     cwl_outputs.extend(self.parse_output_yml(file))
-                if file.name.split('.').pop().lower() in ['json', 'cwl']:
+                if file.name.split('.').pop().lower() in EXTENSIONS.json_all:
                     cwl_outputs.extend(self.parse_cwl(file, 'outputs'))
 
-        cwl_outputs.append(GENERIC_OUTPUT_DIRECTORY)
+        # if the only output is reports, or there are no outputs, add generic
+        if len(cwl_outputs) == 0 or \
+                (len(cwl_outputs) == 1 and cwl_outputs[0]['id'] == 'reports'):
+            cwl_outputs.append(GENERIC_OUTPUT_DIRECTORY)
 
         for output in cwl_outputs:
             base_id = output['id']
@@ -387,16 +391,16 @@ class SBNextflowWrapper:
 
         return return_list
 
-    def dump_sb_wrapper(self, out_format='yaml'):
+    def dump_sb_wrapper(self, out_format=EXTENSIONS.yaml):
         """
         Dump SB wrapper for nextflow workflow to a file
         """
         sb_wrapper_path = os.path.join(
             self.workflow_path, f'sb_nextflow_schema.{out_format}')
-        if out_format == 'yaml':
+        if out_format in EXTENSIONS.yaml_all:
             with open(sb_wrapper_path, 'w') as f:
                 yaml.dump(self.sb_wrapper, f, indent=4, sort_keys=True)
-        elif out_format == 'json' or out_format == 'cwl':
+        elif out_format in EXTENSIONS.json_all:
             with open(sb_wrapper_path, 'w') as f:
                 json.dump(self.sb_wrapper, f, indent=4, sort_keys=True)
 
@@ -596,7 +600,7 @@ def main():
             manual_validation=args.manual_validation
         )
         # Dump app to local file
-        out_format = 'json' if args.json else 'yaml'
+        out_format = EXTENSIONS.json if args.json else EXTENSIONS.yaml
         nf_wrapper.dump_sb_wrapper(out_format=out_format)
 
     # Install app

@@ -55,6 +55,18 @@ SKIP_NEXTFLOW_TOWER_KEYS = [
 ]
 
 
+# keep track of what extensions are applicable for processing
+class EXTENSIONS:
+    yaml = 'yaml'
+    yml = 'yml'
+    json = 'json'
+    cwl = 'cwl'
+
+    yaml_all = [yaml, yml, cwl]
+    json_all = [json, cwl]
+    all_ = [yaml, yml, json, cwl]
+
+
 def create_profile_enum(profiles: list):
     """
     If profiles are defined in the config file, this input stores the profiles
@@ -277,7 +289,7 @@ def update_schema_code_package(sb_schema, schema_ext, new_code_package):
     """
     Update the package in the sb_schema
     """
-    if schema_ext.lower() in ['json']:
+    if schema_ext.lower() == EXTENSIONS.json:
         with open(sb_schema, 'r') as file:
             sb_schema_json = json.load(file)
         sb_schema_json['app_content']['code_package'] = new_code_package
@@ -286,7 +298,7 @@ def update_schema_code_package(sb_schema, schema_ext, new_code_package):
 
         return sb_schema_json
 
-    elif schema_ext.lower() in ['yaml', 'yml', 'cwl']:
+    elif schema_ext.lower() in EXTENSIONS.yaml_all:
         with open(sb_schema, 'r') as file:
             sb_schema_yaml = yaml.safe_load(file)
         sb_schema_yaml['app_content']['code_package'] = new_code_package
