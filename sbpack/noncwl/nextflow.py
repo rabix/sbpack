@@ -1,5 +1,4 @@
 import re
-import ruamel.yaml
 import json
 import argparse
 import logging
@@ -22,6 +21,7 @@ from sbpack.noncwl.utils import (
     update_schema_code_package,
     install_or_upgrade_app,
     validate_inputs,
+    nf_schema_type_mapper,
     GENERIC_FILE_ARRAY_INPUT,
     GENERIC_OUTPUT_DIRECTORY,
     WRAPPER_REQUIREMENTS,
@@ -32,7 +32,6 @@ from sbpack.noncwl.utils import (
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-PACKAGE_SIZE_LIMIT = 100 * 1024 * 1024  # MB
 NF_SCHEMA_DEFAULT_NAME = 'nextflow_schema.json'
 
 
@@ -51,30 +50,6 @@ class SBNextflowWrapper:
         self.input_schemas = None
 
     @staticmethod
-    def nf_schema_type_mapper(input_type_string):
-        """
-        Convert nextflow schema input type to CWL
-        """
-        type_ = input_type_string.get('type', 'string')
-        format_ = input_type_string.get('format', '')
-        if type_ == 'string' and 'path' in format_:
-            if format_ == 'file-path':
-                return ['File']
-            if format_ == 'directory-path':
-                return ['Directory']
-            if format_ == 'path':
-                return ['File']
-        if type_ == 'string':
-            return ['string']
-        if type_ == 'integer':
-            return ['int']
-        if type_ == 'number':
-            return ['float']
-        if type_ == 'boolean':
-            return ['boolean']
-        return [type_]
-
-    @staticmethod
     def nf_cwl_port_map():
         """
         Mappings of nextflow input fields to SB input fields
@@ -84,19 +59,43 @@ class SBNextflowWrapper:
             'default': 'sbg:toolDefaultValue',
             'description': 'label',
             'help_text': 'doc',
+            'mimetype': 'format',
+            'fa_icon': 'sbg:fa_icon',
+            'pattern': 'sbg:pattern',
+            'hidden': 'sbg:hidden',
         }
 
-    def nf_to_sb_input_mapper(self, port_id, port_data):
+    @staticmethod
+    def nf_cwl_category_map():
+        """
+        Mappings of nextflow definition fields to SB category fields
+        nextflow_key: cwl_key mapping
+        """
+        return {
+            'title': 'sbg:title',
+            'description': 'sbg:doc',
+            'fa_icon': 'sbg:fa_icon',
+        }
+
+    def nf_to_sb_input_mapper(self, port_id, port_data, category=None):
         """
         Convert a single input from Nextflow schema to SB schema
         """
         sb_input = dict()
         sb_input['id'] = port_id
-        sb_input['type'] = self.nf_schema_type_mapper(port_data)
+        sb_input['type'] = nf_schema_type_mapper(port_data)
         sb_input['type'].append('null')
+        if category:
+            sb_input['sbg:category'] = category
         for nf_field, sb_field in self.nf_cwl_port_map().items():
             if nf_field in port_data:
-                sb_input[sb_field] = port_data[nf_field]
+                value = port_data[nf_field]
+                if value == ":" and nf_field == 'default':
+                    # Bug prevents running a task if an input's
+                    # default value is exactly ":"
+                    value = " :"
+                sb_input[sb_field] = value
+
         sb_input['inputBinding'] = {
             'prefix': f'--{port_id}',
         }
@@ -108,10 +107,21 @@ class SBNextflowWrapper:
         definition contains multiple properties
         """
         cwl_inputs = list()
+        sb_category = dict()
+
+        for nf_field, sb_field in self.nf_cwl_category_map().items():
+            if nf_field in definition:
+                sb_category[sb_field] = definition[nf_field]
+
+        input_category = 'Inputs'
+        if 'title' in definition:
+            input_category = sb_category['sbg:title']
+
         for port_id, port_data in definition['properties'].items():
             cwl_inputs.append(self.nf_to_sb_input_mapper(
                 port_id,
                 port_data,
+                category=input_category,
             ))
             # Nextflow schema field "required" lists input_ids
             # for required inputs.
@@ -119,7 +129,7 @@ class SBNextflowWrapper:
             # is that some inputs can be contained in the profile. This means
             # that they do not have to be provided explicitly through the
             # command line.
-        return cwl_inputs
+        return cwl_inputs, sb_category
 
     def nf_schema_build(self):
         """
@@ -146,7 +156,7 @@ class SBNextflowWrapper:
     @staticmethod
     def file_is_nf_schema(path):
         try:
-            schema = ruamel.yaml.safe_load(path)
+            schema = yaml.safe_load(path)
             if 'definitions' not in schema:
                 return False
             if type(schema['definitions']) is not dict:
@@ -175,15 +185,17 @@ class SBNextflowWrapper:
 
         if self.nf_schema_path:
             with open(self.nf_schema_path, 'r') as f:
-                nf_schema = ruamel.yaml.safe_load(f)
+                nf_schema = yaml.safe_load(f)
 
             for p_key, p_value in nf_schema.get('properties', {}).items():
                 cwl_inputs.append(
                     self.nf_to_sb_input_mapper(p_key, p_value))
             for def_name, definition in nf_schema.get(
                     'definitions', {}).items():
-                cwl_inputs.extend(
-                    self.collect_nf_definition_properties(definition))
+                inputs, category = self.collect_nf_definition_properties(
+                    definition)
+                cwl_inputs.extend(inputs)
+                # add category to schema
 
         if self.input_schemas:
             for file in self.input_schemas:
@@ -354,7 +366,7 @@ class SBNextflowWrapper:
         :return: list of outputs in CWL format.
         """
         outputs = list()
-        yml_schema = ruamel.yaml.safe_load(yml_file)
+        yml_schema = yaml.safe_load(yml_file)
 
         for key, value in yml_schema.items():
             # Tower yml file can use "tower" key in the yml file to designate
@@ -525,7 +537,7 @@ def main():
     )
     parser.add_argument(
         "--revision-note", required=False,
-        default=None, type=str, nargs="+",
+        default=None, type=str,
         help="Revision note to be placed in the CWL schema if the app is "
              "uploaded to the sbg platform.",
     )
@@ -608,7 +620,7 @@ def main():
         revision_note = f"Uploaded using sbpack v{__version__}"
 
         if args.revision_note:
-            revision_note = str(" ".join(args.revision_note))
+            revision_note = str(args.revision_note)
 
         if not args.sb_schema:
             sb_app["sbg:revisionNotes"] = revision_note

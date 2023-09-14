@@ -1,7 +1,7 @@
 import argparse
 import logging
 import sbpack.lib as lib
-from sevenbridges.errors import NotFound
+# from sevenbridges.errors import NotFound
 from sbpack.noncwl.utils import install_or_upgrade_app
 
 logger = logging.getLogger(__name__)

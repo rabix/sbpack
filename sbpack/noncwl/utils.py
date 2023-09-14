@@ -10,7 +10,7 @@ from sevenbridges.errors import NotFound
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-PACKAGE_SIZE_LIMIT = 100 * 1024 * 1024
+PACKAGE_SIZE_LIMIT = 256 * 1024 * 1024  # MB
 
 # A generic SB input array of files that should be available on the
 # instance but are not explicitly provided to the execution as wdl params.
@@ -65,6 +65,45 @@ class EXTENSIONS:
     yaml_all = [yaml, yml, cwl]
     json_all = [json, cwl]
     all_ = [yaml, yml, json, cwl]
+
+
+def nf_schema_type_mapper(input_type_string):
+    """
+    Convert nextflow schema input type to CWL
+    """
+    type_ = input_type_string.get('type', 'string')
+    format_ = input_type_string.get('format', '')
+
+    return type_mapper(type_, format_)
+
+
+def type_mapper(type_, format_):
+    if isinstance(type_, str):
+        if type_ == 'string' and 'path' in format_:
+            if format_ == 'file-path':
+                return ['File']
+            if format_ == 'directory-path':
+                return ['Directory']
+            if format_ == 'path':
+                return ['File']
+        if type_ == 'string':
+            return ['string']
+        if type_ == 'integer':
+            return ['int']
+        if type_ == 'number':
+            return ['float']
+        if type_ == 'boolean':
+            return ['boolean']
+        if type_ == 'object':
+            # this should be a record type (dictionary)
+            # it is provided as '{"key1": "value1", "key2": "value2"}'
+            return ['string']
+        return [type_]
+    elif isinstance(type_, list):
+        temp_type_list = []
+        for m in type_:
+            temp_type_list.extend(type_mapper(m, format_))
+        return temp_type_list
 
 
 def create_profile_enum(profiles: list):
@@ -249,10 +288,11 @@ def parse_config_file(file_path):
     with open(file_path, 'r') as file:
         config = file.read()
 
-        trace_pattern = re.compile(r"trace\s\{.*}", re.MULTILINE | re.DOTALL)
-        if re.findall(trace_pattern, config):
-            logger.warning("Detected `trace` in nextflow config. This "
-                           "functionality is currently not supported.")
+        # Trace
+        # trace_pattern = re.compile(r"trace\s\{.*}", re.MULTILINE | re.DOTALL)
+        # if re.findall(trace_pattern, config):
+        #     logger.warning("Detected `trace` in nextflow config. This "
+        #                    "functionality is currently not supported.")
         found_profiles = False
         brackets = 0
 
