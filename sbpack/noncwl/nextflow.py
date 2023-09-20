@@ -622,8 +622,7 @@ def main():
         if args.revision_note:
             revision_note = str(args.revision_note)
 
-        if not args.sb_schema:
-            sb_app["sbg:revisionNotes"] = revision_note
+        sb_app["sbg:revisionNotes"] = revision_note
 
         install_or_upgrade_app(api, args.appid, sb_app)
 

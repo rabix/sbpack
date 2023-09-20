@@ -5,12 +5,14 @@ import logging
 import json
 import yaml
 import re
+
+from sbpack.pack import pack
 from sevenbridges.errors import NotFound
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-PACKAGE_SIZE_LIMIT = 256 * 1024 * 1024  # MB
+PACKAGE_SIZE_LIMIT = 256 * 1024 * 1024 - 1  # ~256 MB
 
 # A generic SB input array of files that should be available on the
 # instance but are not explicitly provided to the execution as wdl params.
@@ -190,12 +192,41 @@ def zip_and_push_to_sb(api, workflow_path, project_id, folder_name):
     for packages on SevenBridges Platform. Delete local .zip file.
     """
 
-    basename = os.path.basename(os.path.abspath(workflow_path)) + '_' + \
-        time.strftime("%Y%m%d-%H%M%S")
+    # This will create a temporary directory that will store all files from the
+    # original directory, except for the .git hidden directory. This dir
+    # sometimes collects a large amount of files that will not be used by the
+    # tool, and can increase the size of the archive up to 10 times.
 
-    zip_path = os.path.join(os.path.dirname(workflow_path), basename + '.zip')
-    shutil.make_archive(zip_path[:-4], 'zip', root_dir=workflow_path,
-                        base_dir='./')
+    source_path = os.path.abspath(workflow_path)
+    destination_path = source_path + '_' + time.strftime("%Y%m%d-%H%M%S")
+    zip_path = destination_path + '.zip'
+    os.mkdir(destination_path)
+
+    for root, dirs, files in os.walk(workflow_path):
+        pattern = re.compile(r'(?:^|.*/)\.git(?:$|/.*)')
+        if re.match(pattern, root):
+            continue
+
+        dirs = [d for d in dirs if not re.match(pattern, d)]
+        for d in dirs:
+            source_file = os.path.join(root, d)
+            directory_path = os.path.join(destination_path, os.path.relpath(
+                source_file, workflow_path))
+            if not os.path.exists(directory_path):
+                os.mkdir(directory_path)
+
+        for file in files:
+            source_file = os.path.join(root, file)
+            dest_file = os.path.join(destination_path, os.path.relpath(
+                source_file, workflow_path))
+            shutil.copy2(source_file, dest_file)
+
+    shutil.make_archive(
+        destination_path,
+        'zip',
+        root_dir=destination_path,
+        base_dir='./'
+    )
 
     if os.path.getsize(zip_path) > PACKAGE_SIZE_LIMIT:
         logger.error(f"File size too big: {os.path.getsize(zip_path)}")
@@ -223,7 +254,10 @@ def zip_and_push_to_sb(api, workflow_path, project_id, folder_name):
     print(f'Upload complete!')
 
     os.remove(zip_path)
-    print(f'Local file {zip_path} deleted.')
+    print(f'Temporary local file {zip_path} deleted.')
+
+    shutil.rmtree(destination_path)
+    print(f'Temporary local folder {destination_path} deleted.')
 
     return uploaded_file_id
 
@@ -329,23 +363,19 @@ def update_schema_code_package(sb_schema, schema_ext, new_code_package):
     """
     Update the package in the sb_schema
     """
-    if schema_ext.lower() == EXTENSIONS.json:
-        with open(sb_schema, 'r') as file:
-            sb_schema_json = json.load(file)
-        sb_schema_json['app_content']['code_package'] = new_code_package
-        with open(sb_schema, 'w') as file:
-            json.dump(sb_schema_json, file)
 
-        return sb_schema_json
+    sb_schema_dict = pack(sb_schema)
+    sb_schema_dict['app_content']['code_package'] = new_code_package
+
+    if schema_ext.lower() == EXTENSIONS.json:
+        with open(sb_schema, 'w') as file:
+            json.dump(sb_schema_dict, file)
 
     elif schema_ext.lower() in EXTENSIONS.yaml_all:
-        with open(sb_schema, 'r') as file:
-            sb_schema_yaml = yaml.safe_load(file)
-        sb_schema_yaml['app_content']['code_package'] = new_code_package
         with open(sb_schema, 'w') as file:
-            yaml.dump(sb_schema_yaml, file)
+            yaml.dump(sb_schema_dict, file)
 
-        return sb_schema_yaml
+    return sb_schema_dict
 
 
 def install_or_upgrade_app(api, app_id, sb_app_raw):
