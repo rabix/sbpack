@@ -60,7 +60,7 @@ class SBNextflowWrapper:
             'description': 'label',
             'help_text': 'doc',
             'mimetype': 'format',
-            'fa_icon': 'sbg:fa_icon',
+            'fa_icon': 'sbg:icon',
             'pattern': 'sbg:pattern',
             'hidden': 'sbg:hidden',
         }
@@ -74,7 +74,7 @@ class SBNextflowWrapper:
         return {
             'title': 'sbg:title',
             'description': 'sbg:doc',
-            'fa_icon': 'sbg:fa_icon',
+            'fa_icon': 'sbg:icon',
         }
 
     def nf_to_sb_input_mapper(self, port_id, port_data, category=None):

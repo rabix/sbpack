@@ -344,10 +344,12 @@ def parse_config_file(file_path):
 
     # Extract profiles using regex
     profiles = {}
-    pattern = re.compile(r'^\s*(\w+)\s*{([^}]+)}', re.MULTILINE | re.DOTALL)
+    pattern = re.compile(r'\s*(\w+)\s*{([^}]+)}', re.MULTILINE | re.DOTALL)
     blocks = re.findall(pattern, profiles_text)
     for name, content in blocks:
-        settings = dict(re.findall(r'\s*([a-zA-Z.]+)\s*=\s*(.*)', content))
+        settings = dict(
+            re.findall(r'([a-zA-Z._]+)(?:\s+|)=(?:\s+|)([^\s]+)', content)
+        )
         profiles[name] = settings
         include_path = re.findall(
             r'includeConfig\s+[\'\"]([a-zA-Z_.\\/]+)[\'\"]', content)
