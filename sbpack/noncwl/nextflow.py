@@ -14,6 +14,11 @@ from sbpack.noncwl.utils import (
     get_dict_depth,
     zip_and_push_to_sb,
     get_readme,
+    get_tower_yml,
+    get_entrypoint,
+    get_config_files,
+    parse_config_file,
+    create_profile_enum,
     update_schema_code_package,
     install_or_upgrade_app,
     validate_inputs,
@@ -21,6 +26,7 @@ from sbpack.noncwl.utils import (
     GENERIC_OUTPUT_DIRECTORY,
     WRAPPER_REQUIREMENTS,
     SKIP_NEXTFLOW_TOWER_KEYS,
+    EXTENSIONS,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,6 +44,7 @@ class SBNextflowWrapper:
         self.workflow_path = workflow_path
         self.dump_schema = dump_schema
         self.nf_schema_path = None
+        self.nf_config_files = None
         self.sb_doc = sb_doc
         self.executor_version = None
         self.output_schemas = None
@@ -79,15 +86,14 @@ class SBNextflowWrapper:
             'help_text': 'doc',
         }
 
-    def nf_to_sb_input_mapper(self, port_id, port_data, required=False):
+    def nf_to_sb_input_mapper(self, port_id, port_data):
         """
         Convert a single input from Nextflow schema to SB schema
         """
         sb_input = dict()
         sb_input['id'] = port_id
         sb_input['type'] = self.nf_schema_type_mapper(port_data)
-        if not required:
-            sb_input['type'].append('null')
+        sb_input['type'].append('null')
         for nf_field, sb_field in self.nf_cwl_port_map().items():
             if nf_field in port_data:
                 sb_input[sb_field] = port_data[nf_field]
@@ -106,10 +112,13 @@ class SBNextflowWrapper:
             cwl_inputs.append(self.nf_to_sb_input_mapper(
                 port_id,
                 port_data,
-                required=port_id in definition.get('required', [])),
-            )
+            ))
             # Nextflow schema field "required" lists input_ids
-            # for required inputs
+            # for required inputs.
+            # Reason we are not using definition.get('required', []) any longer
+            # is that some inputs can be contained in the profile. This means
+            # that they do not have to be provided explicitly through the
+            # command line.
         return cwl_inputs
 
     def nf_schema_build(self):
@@ -181,9 +190,21 @@ class SBNextflowWrapper:
                 if file.name == self.nf_schema_path:
                     continue
                 if file.name.split('.').pop().lower() in \
-                        ['yaml', 'yml', 'json', 'cwl']:
+                        EXTENSIONS.all_:
                     cwl_inputs.extend(self.parse_cwl(file, 'inputs'))
 
+        # Add profiles to the input
+        self.nf_config_files = get_config_files(self.workflow_path)
+        profiles = []
+        for path in self.nf_config_files:
+            profiles.extend(list(parse_config_file(path).keys()))
+
+        profiles = sorted(list(set(profiles)))
+
+        if profiles:
+            cwl_inputs.append(create_profile_enum(profiles))
+
+        # Add the generic file array input - auxiliary files
         cwl_inputs.append(GENERIC_FILE_ARRAY_INPUT)
 
         input_ids = set()
@@ -213,12 +234,15 @@ class SBNextflowWrapper:
 
         if self.output_schemas:
             for file in self.output_schemas:
-                if file.name.split('.').pop().lower() in ['yml', 'yaml']:
+                if file.name.split('.').pop().lower() in EXTENSIONS.yaml_all:
                     cwl_outputs.extend(self.parse_output_yml(file))
-                if file.name.split('.').pop().lower() in ['json', 'cwl']:
+                if file.name.split('.').pop().lower() in EXTENSIONS.json_all:
                     cwl_outputs.extend(self.parse_cwl(file, 'outputs'))
 
-        cwl_outputs.append(GENERIC_OUTPUT_DIRECTORY)
+        # if the only output is reports, or there are no outputs, add generic
+        if len(cwl_outputs) == 0 or \
+                (len(cwl_outputs) == 1 and cwl_outputs[0]['id'] == 'reports'):
+            cwl_outputs.append(GENERIC_OUTPUT_DIRECTORY)
 
         for output in cwl_outputs:
             base_id = output['id']
@@ -297,7 +321,7 @@ class SBNextflowWrapper:
 
         # Case 2: Output is a File type
         elif re.fullmatch(file_pattern, key):
-            # create a list of files outptu
+            # create a list of files output
             converted_cwl_output = {
                 id_key: clean_id,
                 "label": name,
@@ -334,7 +358,7 @@ class SBNextflowWrapper:
 
         for key, value in yml_schema.items():
             # Tower yml file can use "tower" key in the yml file to designate
-            # some of the configurations tower uses. Since these are not output
+            # some configurations tower uses. Since these are not output
             # definitions, we skip these.
             if key in SKIP_NEXTFLOW_TOWER_KEYS and \
                     yml_file == 'tower.yml':
@@ -367,16 +391,16 @@ class SBNextflowWrapper:
 
         return return_list
 
-    def dump_sb_wrapper(self, out_format='yaml'):
+    def dump_sb_wrapper(self, out_format=EXTENSIONS.yaml):
         """
         Dump SB wrapper for nextflow workflow to a file
         """
         sb_wrapper_path = os.path.join(
             self.workflow_path, f'sb_nextflow_schema.{out_format}')
-        if out_format == 'yaml':
+        if out_format in EXTENSIONS.yaml_all:
             with open(sb_wrapper_path, 'w') as f:
                 yaml.dump(self.sb_wrapper, f, indent=4, sort_keys=True)
-        elif out_format == 'json' or out_format == 'cwl':
+        elif out_format in EXTENSIONS.json_all:
             with open(sb_wrapper_path, 'w') as f:
                 json.dump(self.sb_wrapper, f, indent=4, sort_keys=True)
 
@@ -391,6 +415,11 @@ class SBNextflowWrapper:
         """
         if output_schemas:
             self.output_schemas = output_schemas
+        if get_tower_yml(self.workflow_path):
+            if not self.output_schemas:
+                self.output_schemas = []
+            self.output_schemas.append(open(get_tower_yml(self.workflow_path)))
+
         if input_schemas:
             self.input_schemas = input_schemas
 
@@ -443,12 +472,16 @@ def main():
         help="Takes the form {user or division}/{project}/{app_id}.",
     )
     parser.add_argument(
-        "--entrypoint", required=True,
-        help="Relative path to the workflow from the main workflow directory",
-    )
-    parser.add_argument(
         "--workflow-path", required=True,
         help="Path to the main workflow directory",
+    )
+    parser.add_argument(
+        "--entrypoint", required=False,
+        help="Relative path to the workflow from the main workflow directory. "
+             "If not provided, 'main.nf' will be used if available. "
+             "If not available, but a single '*.nf' is located in the "
+             "workflow-path will be used. If more than one '*.nf' script is "
+             "detected, an error is raised.",
     )
     parser.add_argument(
         "--sb-package-id", required=False,
@@ -507,6 +540,8 @@ def main():
     args = parser.parse_args()
 
     # Preprocess CLI parameter values
+    entrypoint = args.entrypoint or \
+        get_entrypoint(args.workflow_path) or 'main.nf'
 
     sb_doc = None
     if args.sb_doc:
@@ -532,7 +567,7 @@ def main():
             folder_name='nextflow_workflows'
         )
         sb_app = nf_wrapper.generate_sb_app(
-            sb_entrypoint=args.entrypoint,
+            sb_entrypoint=entrypoint,
             sb_schema=args.sb_schema,
             executor_version=args.executor_version,
             manual_validation=args.manual_validation
@@ -558,14 +593,14 @@ def main():
 
         # Create app
         sb_app = nf_wrapper.generate_sb_app(
-            sb_entrypoint=args.entrypoint,
+            sb_entrypoint=entrypoint,
             executor_version=args.executor_version,
             output_schemas=args.output_schema_files,
             input_schemas=args.input_schema_files,
             manual_validation=args.manual_validation
         )
         # Dump app to local file
-        out_format = 'json' if args.json else 'yaml'
+        out_format = EXTENSIONS.json if args.json else EXTENSIONS.yaml
         nf_wrapper.dump_sb_wrapper(out_format=out_format)
 
     # Install app
