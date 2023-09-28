@@ -191,16 +191,26 @@ def zip_and_push_to_sb(api, workflow_path, project_id, folder_name):
     Create .zip package file. Upload .zip file to the designated folder
     for packages on SevenBridges Platform. Delete local .zip file.
     """
+    zip_path = zip_directory(workflow_path)
+    return push_zip(api, zip_path, project_id, folder_name)
 
-    # This will create a temporary directory that will store all files from the
-    # original directory, except for the .git hidden directory. This dir
-    # sometimes collects a large amount of files that will not be used by the
-    # tool, and can increase the size of the archive up to 10 times.
 
-    source_path = os.path.abspath(workflow_path)
-    destination_path = source_path + '_' + time.strftime("%Y%m%d-%H%M%S")
-    zip_path = destination_path + '.zip'
-    os.mkdir(destination_path)
+def update_timestamp(file_name):
+    return re.sub(
+        r"(?:\.|)_\d{8}-\d{6}$", "", file_name
+    ) + f'_{time.strftime("%Y%m%d-%H%M%S")}'
+
+
+def zip_directory(workflow_path):
+    """
+    This will create a temporary directory that will store all files from the
+    original directory, except for the .git hidden directory. This dir
+    sometimes collects a large amount of files that will not be used by the
+    tool, and can increase the size of the archive up to 10 times.
+    """
+
+    intermediary_dir = update_timestamp(os.path.abspath(workflow_path))
+    os.mkdir(intermediary_dir)
 
     for root, dirs, files in os.walk(workflow_path):
         pattern = re.compile(r'(?:^|.*/)\.git(?:$|/.*)')
@@ -210,54 +220,68 @@ def zip_and_push_to_sb(api, workflow_path, project_id, folder_name):
         dirs = [d for d in dirs if not re.match(pattern, d)]
         for d in dirs:
             source_file = os.path.join(root, d)
-            directory_path = os.path.join(destination_path, os.path.relpath(
+            directory_path = os.path.join(intermediary_dir, os.path.relpath(
                 source_file, workflow_path))
             if not os.path.exists(directory_path):
                 os.mkdir(directory_path)
 
         for file in files:
             source_file = os.path.join(root, file)
-            dest_file = os.path.join(destination_path, os.path.relpath(
+            dest_file = os.path.join(intermediary_dir, os.path.relpath(
                 source_file, workflow_path))
             shutil.copy2(source_file, dest_file)
 
     shutil.make_archive(
-        destination_path,
+        intermediary_dir,
         'zip',
-        root_dir=destination_path,
+        root_dir=intermediary_dir,
         base_dir='./'
     )
 
+    shutil.rmtree(intermediary_dir)
+    print(f'Temporary local folder {intermediary_dir} deleted.')
+
+    return intermediary_dir + '.zip'
+
+
+def push_zip(api, zip_path, project_id, folder_name=None):
     if os.path.getsize(zip_path) > PACKAGE_SIZE_LIMIT:
         logger.error(f"File size too big: {os.path.getsize(zip_path)}")
         raise FileExistsError  # Add the right error
 
-    folder_found = list(api.files.query(
-        project=project_id,
-        names=[folder_name],
-    ).all())
+    folder_id = None
+    if folder_name:
+        # check if the folder already exists
+        folder_found = list(api.files.query(
+            project=project_id,
+            names=[folder_name],
+        ).all())
 
-    if not folder_found:
-        folder_created = api.files.create_folder(
-            project=api.projects.get(project_id),
-            name=folder_name
-        )
-        folder_id = folder_created.id
-    else:
-        folder_id = folder_found[0].id
+        if folder_found:
+            folder_id = folder_found[0].id
+        else:
+            # if the folder does not exist, make it
+            folder_created = api.files.create_folder(
+                project=api.projects.get(project_id),
+                name=folder_name
+            )
+            folder_id = folder_created.id
 
     print(f'Uploading file {zip_path}, '
           f'please wait for the upload to complete.')
-    u = api.files.upload(zip_path, parent=folder_id, overwrite=False)
+
+    u = api.files.upload(
+        zip_path,
+        parent=folder_id,
+        project=project_id if not folder_id else None,
+        overwrite=False
+    )
 
     uploaded_file_id = u.result().id
     print(f'Upload complete!')
 
     os.remove(zip_path)
     print(f'Temporary local file {zip_path} deleted.')
-
-    shutil.rmtree(destination_path)
-    print(f'Temporary local folder {destination_path} deleted.')
 
     return uploaded_file_id
 
