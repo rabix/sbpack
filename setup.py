@@ -28,7 +28,7 @@ setup(
             'sbpull = sbpack.unpack:main',
             'sbpack_nf = sbpack.noncwl.nextflow:main',
             'sbpack_wdl = sbpack.noncwl.wdl:main',
-            'sbcopy = sbpack.noncwl.copy:main',
+            'sbcopy = sbpack.noncwl.copy_app:main',
         ],
     },
 

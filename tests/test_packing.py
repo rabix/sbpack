@@ -25,7 +25,11 @@ def test_include():
     assert "arguments" in cwl
     assert isinstance(cwl.get("arguments"), list)
 
-    inline_js_req = _find(cwl.get("requirements"), "class", "InlineJavascriptRequirement")
+    inline_js_req = _find(
+        cwl.get("requirements"),
+        "class",
+        "InlineJavascriptRequirement"
+    )
     include_js = inline_js_req.get("expressionLib")
 
     assert isinstance(include_js, list)
@@ -61,7 +65,10 @@ def test_embedded_packing():
 
 def test_embedded_packing_with_ids():
     cwl = pack("workflows/count-lines16-wf.cwl", add_ids=True)
-    assert cwl["steps"][0]["run"]["id"] == "count-lines16-wf.cwl@step_step1@run"
+    assert (
+            cwl["steps"][0]["run"]["id"]
+            == "count-lines16-wf.cwl@step_step1@run"
+    )
     assert (
         cwl["steps"][0]["run"]["steps"][0]["run"]["id"]
         == "count-lines16-wf.cwl@step_step1@wc-tool.cwl"
@@ -81,7 +88,10 @@ def test_step_process_id():
 
 
 def test_remote_packing():
-    cwl = pack("https://raw.githubusercontent.com/kaushik-work/sbpack/master/tests/wf2.cwl")
+    cwl = pack(
+        "https://raw.githubusercontent.com/kaushik-work/"
+        "sbpack/master/tests/wf2.cwl"
+    )
     s1 = _find(cwl.get("steps"), "id", "s1")
     wf1 = s1.get("run")
     assert wf1.get("class") == "Workflow"
@@ -93,10 +103,14 @@ def test_remote_packing():
 
 
 def test_remote_packing_github_soft_links():
-    cwl = pack("https://raw.githubusercontent.com/rabix/sbpack/master/tests/workflows/wf5.cwl")
+    cwl = pack(
+        "https://raw.githubusercontent.com/rabix/"
+        "sbpack/master/tests/workflows/wf5.cwl"
+    )
     s1 = _find(cwl.get("steps"), "id", "s1")
     tool1 = s1.get("run")
     assert tool1.get("class") == "CommandLineTool"
+
 
 def test_already_packed_graph():
     """Workflow already packed in a $graph."""
@@ -105,6 +119,7 @@ def test_already_packed_graph():
     assert "outputs" not in cwl
     assert "$graph" in cwl
     assert "requirements" not in cwl
+
 
 def test_import_in_type():
     cwl = pack("workflows/import-in-type.cwl")
