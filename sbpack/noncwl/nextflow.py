@@ -393,9 +393,15 @@ class SBNextflowWrapper:
             self.sb_wrapper['app_content'] = app_content
 
             if execution_mode or self.execution_mode:
-                self.sb_wrapper['hints'] = [
-                    {'NextflowExecutionMode': execution_mode}
-                ]
+                if 'hints' not in self.sb_wrapper:
+                    self.sb_wrapper['hints'] = []
+
+                self.sb_wrapper['hints'].append(
+                    {
+                        'class': 'sbg:NextflowExecutionMode',
+                        'value': execution_mode.value
+                    }
+                )
 
             if self.sb_doc:
                 self.sb_wrapper['doc'] = self.sb_doc
@@ -451,7 +457,7 @@ def main():
     )
     parser.add_argument(
         "--execution-mode", type=ExecMode, choices=list(ExecMode),
-        required=False, default=ExecMode.single,
+        required=False, default=None,
         help="Execution mode for your application.",
     )
     parser.add_argument(
@@ -526,7 +532,7 @@ def main():
         sb_app = nf_wrapper.generate_sb_app(
             sb_entrypoint=entrypoint,
             executor_version=args.executor_version,
-            execution_mode=args.execution_mode.value,
+            execution_mode=args.execution_mode,
         )
         # Dump app to local file
         out_format = EXTENSIONS.json if args.json else EXTENSIONS.yaml
