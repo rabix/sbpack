@@ -8,65 +8,14 @@ import re
 
 from sbpack.pack import pack
 from sevenbridges.errors import NotFound
+from sbpack.noncwl.constants import (
+    PACKAGE_SIZE_LIMIT,
+    EXTENSIONS,
+    NF_TO_CWL_PORT_MAP,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
-PACKAGE_SIZE_LIMIT = 256 * 1024 * 1024 - 1  # ~256 MB
-
-# A generic SB input array of files that should be available on the
-# instance but are not explicitly provided to the execution as wdl params.
-GENERIC_FILE_ARRAY_INPUT = {
-    "id": "auxiliary_files",
-    "type": "File[]?",
-    "label": "Auxiliary files",
-    "doc": "List of files not added as explicit workflow inputs but "
-           "required for workflow execution."
-}
-
-GENERIC_OUTPUT_DIRECTORY = {
-    "id": "nf_workdir",
-    "type": "Directory?",
-    "label": "Work Directory",
-    "doc": "This is a template output. "
-           "Please change glob to directories specified in "
-           "publishDir in the workflow.",
-    "outputBinding": {
-        "glob": "work"
-    }
-}
-
-# Requirements to be added to sb wrapper
-WRAPPER_REQUIREMENTS = [
-    {
-        "class": "InlineJavascriptRequirement"
-    },
-    {
-        "class": "InitialWorkDirRequirement",
-        "listing": [
-            "$(inputs.auxiliary_files)"
-        ]
-    }
-]
-
-
-# Keys that should be skipped when parsing nextflow tower yaml file
-SKIP_NEXTFLOW_TOWER_KEYS = [
-    'tower',
-    'mail',
-]
-
-
-# keep track of what extensions are applicable for processing
-class EXTENSIONS:
-    yaml = 'yaml'
-    yml = 'yml'
-    json = 'json'
-    cwl = 'cwl'
-
-    yaml_all = [yaml, yml, cwl]
-    json_all = [json, cwl]
-    all_ = [yaml, yml, json, cwl]
 
 
 def nf_schema_type_mapper(input_type_string):
@@ -77,6 +26,36 @@ def nf_schema_type_mapper(input_type_string):
     format_ = input_type_string.get('format', '')
 
     return type_mapper(type_, format_)
+
+
+def nf_to_sb_input_mapper(port_id, port_data, category=None, required=False):
+    """
+    Convert a single input from Nextflow schema to SB schema
+    """
+    sb_input = dict()
+    sb_input['id'] = port_id
+    sb_input['type'] = nf_schema_type_mapper(port_data)
+    sb_input['inputBinding'] = {
+        'prefix': f'--{port_id}',
+    }
+
+    if not required:
+        sb_input['type'].append('null')
+
+    if category:
+        sb_input['sbg:category'] = category
+
+    for nf_field, sb_field in NF_TO_CWL_PORT_MAP.items():
+        if nf_field in port_data:
+            value = port_data[nf_field]
+            if value == ":" and nf_field == 'default':
+                # Bug prevents running a task if an input's
+                #  default value is exactly ":". This bug will likely be
+                #  fixed at the time of release of this version.
+                value = " :"
+            sb_input[sb_field] = value
+
+    return sb_input
 
 
 def type_mapper(type_, format_):
@@ -136,35 +115,6 @@ def create_profile_enum(profiles: list):
             "shellQuote": False,
         }
     }
-
-
-def validate_inputs(inputs):
-    types = {
-        'str': 'string?',
-        'file': 'File?',
-        'dir': 'Directory?',
-        'files': 'File[]?',
-        'dirs': 'Directory[]?'
-    }
-    exit_codes = ['e', 'exit', 'quit', 'q']
-
-    for input_ in inputs:
-        if 'string' in input_['type']:
-            new_type = input(f'What input type is "{input_["id"]}"?\n')
-            while new_type.lower() not in \
-                    list(types.keys()) + exit_codes:
-                print(
-                    f'{new_type} is not a valid input. Please use the '
-                    f'following notation:')
-                for key, val in types.items():
-                    print(f"\t{key}: {val}")
-                new_type = input()
-            if new_type in exit_codes:
-                break
-
-            nt = types[new_type]
-            input_['type'] = nt
-    return inputs
 
 
 def get_dict_depth(dict_, level=0):
@@ -340,45 +290,56 @@ def get_config_files(path):
     return paths or None
 
 
-def parse_config_file(file_path):
-    profiles_text = ""
+def find_config_section(file_path: str, section: str) -> str:
+    section_text = ""
+    found_section = False
+    brackets = 0
 
     with open(file_path, 'r') as file:
-        config = file.read()
-
-        # Trace
-        # trace_pattern = re.compile(r"trace\s\{.*}", re.MULTILINE | re.DOTALL)
-        # if re.findall(trace_pattern, config):
-        #     logger.warning("Detected `trace` in nextflow config. This "
-        #                    "functionality is currently not supported.")
-        found_profiles = False
-        brackets = 0
-
-        for line in config.split("\n"):
-            if found_profiles:
-                profiles_text += line
+        for line in file.readlines():
+            if found_section:
+                section_text += line
                 brackets += line.count("{") - line.count("}")
 
             if brackets < 0:
                 break
 
-            if re.findall(r'profiles\s+\{', line):
-                profiles_text += "{\n"
-                found_profiles = True
+            if re.findall(section + r'\s+\{', line):
+                section_text += "{\n"
+                found_section = True
+
+    return section_text
+
+
+def parse_config_file(file_path: str) -> dict:
+    profiles_text = find_config_section(file_path, 'profiles')
 
     # Extract profiles using regex
     profiles = {}
-    pattern = re.compile(r'\s*(\w+)\s*{([^}]+)}', re.MULTILINE | re.DOTALL)
-    blocks = re.findall(pattern, profiles_text)
+    block_pattern = re.compile(
+        r'\s*(\w+)\s*{([^}]+)}', re.MULTILINE | re.DOTALL
+    )
+    key_val_pattern = re.compile(
+        r'([a-zA-Z._]+)(?:\s+|)=(?:\s+|)([^\s]+)'
+    )
+    include_pattern = re.compile(
+        r'includeConfig\s+[\'\"]([a-zA-Z_.\\/]+)[\'\"]'
+    )
+
+    blocks = re.findall(block_pattern, profiles_text)
     for name, content in blocks:
-        settings = dict(
-            re.findall(r'([a-zA-Z._]+)(?:\s+|)=(?:\s+|)([^\s]+)', content)
-        )
+        settings = dict(re.findall(key_val_pattern, content))
         profiles[name] = settings
-        include_path = re.findall(
-            r'includeConfig\s+[\'\"]([a-zA-Z_.\\/]+)[\'\"]', content)
+        include_path = re.findall(include_pattern, content)
         if include_path:
             profiles[name]['includeConfig'] = include_path
+            include_path = include_path.pop()
+            additional_path = os.path.join(
+                os.path.dirname(file_path), include_path)
+            params_text = find_config_section(additional_path, 'params')
+            params = dict(re.findall(key_val_pattern, params_text))
+            for param, val in params.items():
+                profiles[name][f"params.{param}"] = val
 
     # return currently returns includeConfig and settings, which are not used
     # but could be used in the future versions of sbpack
