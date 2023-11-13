@@ -354,7 +354,7 @@ def update_schema_code_package(sb_schema, schema_ext, new_code_package):
     sb_schema_dict = pack(sb_schema)
     sb_schema_dict['app_content']['code_package'] = new_code_package
 
-    if schema_ext.lower() == EXTENSIONS.json:
+    if schema_ext.lower() in EXTENSIONS.json_all:
         with open(sb_schema, 'w') as file:
             json.dump(sb_schema_dict, file)
 

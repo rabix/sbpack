@@ -12,7 +12,7 @@ class EXTENSIONS:
     cwl = 'cwl'
 
     yaml_all = [yaml, yml, cwl]
-    json_all = [json, cwl]
+    json_all = [json]
     all_ = [yaml, yml, json, cwl]
 
 
@@ -96,6 +96,3 @@ SKIP_NEXTFLOW_TOWER_KEYS = [
 class ExecMode(Enum):
     single = 'single-instance'
     multi = 'multi-instance'
-
-    def __str__(self):
-        return self.value
