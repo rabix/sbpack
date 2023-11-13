@@ -20,13 +20,16 @@ from sbpack.noncwl.utils import (
     create_profile_enum,
     update_schema_code_package,
     install_or_upgrade_app,
-    validate_inputs,
-    nf_schema_type_mapper,
+    nf_to_sb_input_mapper,
+)
+from sbpack.noncwl.constants import (
+    ExecMode,
     GENERIC_FILE_ARRAY_INPUT,
-    GENERIC_OUTPUT_DIRECTORY,
+    GENERIC_NF_OUTPUT_DIRECTORY,
     WRAPPER_REQUIREMENTS,
     SKIP_NEXTFLOW_TOWER_KEYS,
     EXTENSIONS,
+    NF_TO_CWL_CATEGORY_MAP,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,90 +49,7 @@ class SBNextflowWrapper:
         self.nf_config_files = None
         self.sb_doc = sb_doc
         self.executor_version = None
-        self.output_schemas = None
-        self.input_schemas = None
-
-    @staticmethod
-    def nf_cwl_port_map():
-        """
-        Mappings of nextflow input fields to SB input fields
-        nextflow_key: cwl_key mapping
-        """
-        return {
-            'default': 'sbg:toolDefaultValue',
-            'description': 'label',
-            'help_text': 'doc',
-            'mimetype': 'format',
-            'fa_icon': 'sbg:icon',
-            'pattern': 'sbg:pattern',
-            'hidden': 'sbg:hidden',
-        }
-
-    @staticmethod
-    def nf_cwl_category_map():
-        """
-        Mappings of nextflow definition fields to SB category fields
-        nextflow_key: cwl_key mapping
-        """
-        return {
-            'title': 'sbg:title',
-            'description': 'sbg:doc',
-            'fa_icon': 'sbg:icon',
-        }
-
-    def nf_to_sb_input_mapper(self, port_id, port_data, category=None):
-        """
-        Convert a single input from Nextflow schema to SB schema
-        """
-        sb_input = dict()
-        sb_input['id'] = port_id
-        sb_input['type'] = nf_schema_type_mapper(port_data)
-        sb_input['type'].append('null')
-        if category:
-            sb_input['sbg:category'] = category
-        for nf_field, sb_field in self.nf_cwl_port_map().items():
-            if nf_field in port_data:
-                value = port_data[nf_field]
-                if value == ":" and nf_field == 'default':
-                    # Bug prevents running a task if an input's
-                    # default value is exactly ":"
-                    value = " :"
-                sb_input[sb_field] = value
-
-        sb_input['inputBinding'] = {
-            'prefix': f'--{port_id}',
-        }
-        return sb_input
-
-    def collect_nf_definition_properties(self, definition):
-        """
-        Nextflow inputs schema contains multiple definitions where each
-        definition contains multiple properties
-        """
-        cwl_inputs = list()
-        sb_category = dict()
-
-        for nf_field, sb_field in self.nf_cwl_category_map().items():
-            if nf_field in definition:
-                sb_category[sb_field] = definition[nf_field]
-
-        input_category = 'Inputs'
-        if 'title' in definition:
-            input_category = sb_category['sbg:title']
-
-        for port_id, port_data in definition['properties'].items():
-            cwl_inputs.append(self.nf_to_sb_input_mapper(
-                port_id,
-                port_data,
-                category=input_category,
-            ))
-            # Nextflow schema field "required" lists input_ids
-            # for required inputs.
-            # Reason we are not using definition.get('required', []) any longer
-            # is that some inputs can be contained in the profile. This means
-            # that they do not have to be provided explicitly through the
-            # command line.
-        return cwl_inputs, sb_category
+        self.execution_mode = None
 
     def nf_schema_build(self):
         """
@@ -154,7 +74,10 @@ class SBNextflowWrapper:
         return nf_schema_path
 
     @staticmethod
-    def file_is_nf_schema(path):
+    def file_is_nf_schema(path: str) -> bool:
+        """
+        Validation if the provided file is an NF schema file
+        """
         try:
             schema = yaml.safe_load(path)
             if 'definitions' not in schema:
@@ -170,51 +93,68 @@ class SBNextflowWrapper:
             logger.info(f"File {path} is not an nf schema file (due to {e})")
             return False
 
-    def generate_sb_inputs(self, manual_validation=False):
+    def generate_sb_inputs(self):
         """
         Generate SB inputs schema
         """
         cwl_inputs = list()
-        if self.input_schemas:
-            nf_schemas = [
-                f for f in self.input_schemas if self.file_is_nf_schema(f)
-            ]
 
-            if nf_schemas:
-                self.nf_schema_path = nf_schemas.pop().name
+        # ## Add profiles to the input ## #
+        self.nf_config_files = get_config_files(self.workflow_path)
 
+        profiles = dict()
+
+        for path in self.nf_config_files:
+            profiles.update(parse_config_file(path))
+
+        profiles_choices = sorted(list(set(profiles.keys())))
+
+        if profiles:
+            cwl_inputs.append(create_profile_enum(profiles_choices))
+
+        # Optional inputs due to profiles
+        # optional_inputs = []
+        # for profile_id, profile_contents in profiles.items():
+        #     for key in profile_contents.keys():
+        #         if 'params.' in key:
+        #             input_ = key.rsplit('params.', 0)
+        #             optional_inputs.extend(input_)
+        # optional_inputs = set(optional_inputs)
+
+        # ## Add inputs ## #
         if self.nf_schema_path:
             with open(self.nf_schema_path, 'r') as f:
                 nf_schema = yaml.safe_load(f)
 
             for p_key, p_value in nf_schema.get('properties', {}).items():
                 cwl_inputs.append(
-                    self.nf_to_sb_input_mapper(p_key, p_value))
+                    nf_to_sb_input_mapper(p_key, p_value))
             for def_name, definition in nf_schema.get(
                     'definitions', {}).items():
-                inputs, category = self.collect_nf_definition_properties(
-                    definition)
-                cwl_inputs.extend(inputs)
-                # add category to schema
+                # Nextflow inputs schema contains multiple definitions where
+                # each definition contains multiple properties
+                category = dict()
 
-        if self.input_schemas:
-            for file in self.input_schemas:
-                if file.name == self.nf_schema_path:
-                    continue
-                if file.name.split('.').pop().lower() in \
-                        EXTENSIONS.all_:
-                    cwl_inputs.extend(self.parse_cwl(file, 'inputs'))
+                for nf_field, sb_field in NF_TO_CWL_CATEGORY_MAP.items():
+                    if nf_field in definition:
+                        category[sb_field] = definition[nf_field]
 
-        # Add profiles to the input
-        self.nf_config_files = get_config_files(self.workflow_path)
-        profiles = []
-        for path in self.nf_config_files:
-            profiles.extend(list(parse_config_file(path).keys()))
+                input_category = 'Inputs'
+                if 'title' in definition:
+                    input_category = category['sbg:title']
 
-        profiles = sorted(list(set(profiles)))
+                for port_id, port_data in definition['properties'].items():
+                    req = False
+                    # if port_id in definition.get('required', []) and \
+                    #         port_id not in optional_inputs:
+                    #     req = True
 
-        if profiles:
-            cwl_inputs.append(create_profile_enum(profiles))
+                    cwl_inputs.append(nf_to_sb_input_mapper(
+                        port_id,
+                        port_data,
+                        category=input_category,
+                        required=req,
+                    ))
 
         # Add the generic file array input - auxiliary files
         cwl_inputs.append(GENERIC_FILE_ARRAY_INPUT)
@@ -231,10 +171,6 @@ class SBNextflowWrapper:
             input_ids.add(id_)
             inp['id'] = id_
 
-        if manual_validation:
-            print('Input validation')
-            cwl_inputs = validate_inputs(cwl_inputs)
-            print('Input validation completed')
         return cwl_inputs
 
     def generate_sb_outputs(self):
@@ -244,17 +180,16 @@ class SBNextflowWrapper:
         output_ids = set()
         cwl_outputs = list()
 
-        if self.output_schemas:
-            for file in self.output_schemas:
-                if file.name.split('.').pop().lower() in EXTENSIONS.yaml_all:
-                    cwl_outputs.extend(self.parse_output_yml(file))
-                if file.name.split('.').pop().lower() in EXTENSIONS.json_all:
-                    cwl_outputs.extend(self.parse_cwl(file, 'outputs'))
+        if get_tower_yml(self.workflow_path):
+            cwl_outputs.extend(
+                self.parse_output_yml(
+                    open(get_tower_yml(self.workflow_path)))
+            )
 
         # if the only output is reports, or there are no outputs, add generic
         if len(cwl_outputs) == 0 or \
                 (len(cwl_outputs) == 1 and cwl_outputs[0]['id'] == 'reports'):
-            cwl_outputs.append(GENERIC_OUTPUT_DIRECTORY)
+            cwl_outputs.append(GENERIC_NF_OUTPUT_DIRECTORY)
 
         for output in cwl_outputs:
             base_id = output['id']
@@ -372,9 +307,14 @@ class SBNextflowWrapper:
             # Tower yml file can use "tower" key in the yml file to designate
             # some configurations tower uses. Since these are not output
             # definitions, we skip these.
-            if key in SKIP_NEXTFLOW_TOWER_KEYS and \
-                    yml_file == 'tower.yml':
+            if key in SKIP_NEXTFLOW_TOWER_KEYS:
                 continue
+            if key == "reports" and type(value) is dict:
+                temp = value.copy()
+                for k, v in temp.items():
+                    value[f"work/**/**/{k}"] = v
+                    del value[k]
+
             outputs.append(
                 self.make_output_type(key, value)
             )
@@ -418,22 +358,12 @@ class SBNextflowWrapper:
 
     def generate_sb_app(
             self, sb_schema=None, sb_entrypoint='main.nf',
-            executor_version=None, output_schemas=None, input_schemas=None,
-            manual_validation=False
+            executor_version=None, execution_mode=None
     ):  # default nextflow entrypoint
         """
         Generate an SB app for a nextflow workflow, OR edit the one created and
         defined by the user
         """
-        if output_schemas:
-            self.output_schemas = output_schemas
-        if get_tower_yml(self.workflow_path):
-            if not self.output_schemas:
-                self.output_schemas = []
-            self.output_schemas.append(open(get_tower_yml(self.workflow_path)))
-
-        if input_schemas:
-            self.input_schemas = input_schemas
 
         if sb_schema:
             new_code_package = self.sb_package_id if \
@@ -447,9 +377,7 @@ class SBNextflowWrapper:
             self.sb_wrapper['cwlVersion'] = 'None'
             self.sb_wrapper['class'] = 'nextflow'
 
-            self.sb_wrapper['inputs'] = self.generate_sb_inputs(
-                manual_validation
-            )
+            self.sb_wrapper['inputs'] = self.generate_sb_inputs()
             self.sb_wrapper['outputs'] = self.generate_sb_outputs()
             self.sb_wrapper['requirements'] = WRAPPER_REQUIREMENTS
 
@@ -463,6 +391,17 @@ class SBNextflowWrapper:
                                                   self.executor_version
 
             self.sb_wrapper['app_content'] = app_content
+
+            if execution_mode or self.execution_mode:
+                if 'hints' not in self.sb_wrapper:
+                    self.sb_wrapper['hints'] = []
+
+                self.sb_wrapper['hints'].append(
+                    {
+                        'class': 'sbg:NextflowExecutionMode',
+                        'value': execution_mode.value
+                    }
+                )
 
             if self.sb_doc:
                 self.sb_wrapper['doc'] = self.sb_doc
@@ -517,6 +456,11 @@ def main():
         help="Version of the Nextflow executor to be used with the app.",
     )
     parser.add_argument(
+        "--execution-mode", type=ExecMode, choices=list(ExecMode),
+        required=False, default=None,
+        help="Execution mode for your application.",
+    )
+    parser.add_argument(
         "--json", action="store_true", required=False,
         help="Dump sb app schema in JSON format (YAML by default)",
     )
@@ -526,27 +470,10 @@ def main():
              "It is sb_nextflow_schema in JSON or YAML format.",
     )
     parser.add_argument(
-        "--output-schema-files", required=False,
-        default=None, type=argparse.FileType('r'), nargs='+',
-        help="Additional output schema files in CWL or tower.yml format.",
-    )
-    parser.add_argument(
-        "--input-schema-files", required=False,
-        default=None, type=argparse.FileType('r'), nargs='+',
-        help="Additional input schema files in CWL format.",
-    )
-    parser.add_argument(
         "--revision-note", required=False,
         default=None, type=str,
         help="Revision note to be placed in the CWL schema if the app is "
              "uploaded to the sbg platform.",
-    )
-    parser.add_argument(
-        "--manual-validation", required=False, action="store_true",
-        default=False,
-        help="You will have to provide validation for all 'string' type inputs"
-             " if are string (str), file (file), directory (dir), list of file"
-             " (files), or list of directory (dirs) type inputs.",
     )
 
     args = parser.parse_args()
@@ -582,7 +509,7 @@ def main():
             sb_entrypoint=entrypoint,
             sb_schema=args.sb_schema,
             executor_version=args.executor_version,
-            manual_validation=args.manual_validation
+            execution_mode=args.execution_mode.value,
         )
 
     else:
@@ -598,18 +525,14 @@ def main():
                 folder_name='nextflow_workflows'
             )
 
-        # Build or update nextflow inputs schema
-        if not args.input_schema_files:
-            nf_schema_path = nf_wrapper.nf_schema_build()
-            nf_wrapper.nf_schema_path = nf_schema_path
+        nf_schema_path = nf_wrapper.nf_schema_build()
+        nf_wrapper.nf_schema_path = nf_schema_path
 
         # Create app
         sb_app = nf_wrapper.generate_sb_app(
             sb_entrypoint=entrypoint,
             executor_version=args.executor_version,
-            output_schemas=args.output_schema_files,
-            input_schemas=args.input_schema_files,
-            manual_validation=args.manual_validation
+            execution_mode=args.execution_mode,
         )
         # Dump app to local file
         out_format = EXTENSIONS.json if args.json else EXTENSIONS.yaml

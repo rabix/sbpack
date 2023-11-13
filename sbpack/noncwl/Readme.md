@@ -53,39 +53,48 @@ to the Platform.
 ```
 $ sbpack_nf -h
 
-usage: sbpack_nf [-h] [--profile PROFILE] --appid APPID --workflow-path WORKFLOW_PATH [--entrypoint ENTRYPOINT] [--sb-package-id SB_PACKAGE_ID] [--sb-inputs SB_INPUTS] [--sb-outputs SB_OUTPUTS]
-                 [--sb-doc SB_DOC] [--dump-sb-app] [--no-package] [--json] [--sb-schema SB_SCHEMA]
+usage: nextflow.py [-h] [--profile PROFILE] --appid APPID --workflow-path
+                   WORKFLOW_PATH [--entrypoint ENTRYPOINT]
+                   [--sb-package-id SB_PACKAGE_ID] [--sb-doc SB_DOC]
+                   [--dump-sb-app] [--no-package]
+                   [--executor-version EXECUTOR_VERSION]
+                   [--execution-mode {single-instance,multi-instance}]
+                   [--json] [--sb-schema SB_SCHEMA]
+                   [--revision-note REVISION_NOTE]
 
 optional arguments:
   -h, --help            show this help message and exit
-  --profile PROFILE     SB platform profile as set in the SB API credentials file.
+  --profile PROFILE     SB platform profile as set in the SB API credentials
+                        file.
   --appid APPID         Takes the form {user or division}/{project}/{app_id}.
-  --entrypoint ENTRYPOINT
-                        Relative path to the workflow from the main workflow directory. If not provided, 'main.nf' will be used if available. If not available, any '.nf' located in the workflow-path will be used.
   --workflow-path WORKFLOW_PATH
                         Path to the main workflow directory
+  --entrypoint ENTRYPOINT
+                        Relative path to the workflow from the main workflow
+                        directory. If not provided, 'main.nf' will be used if
+                        available. If not available, but a single '*.nf' is
+                        located in the workflow-path will be used. If more
+                        than one '*.nf' script is detected, an error is
+                        raised.
   --sb-package-id SB_PACKAGE_ID
                         Id of an already uploaded package
-  --sb-inputs SB_INPUTS
-                        Path to pre built sb app inputs schema
-  --sb-outputs SB_OUTPUTS
-                        Path to pre build sb app outputs schema
-  --sb-doc SB_DOC       Path to a doc file for sb app. If not provided, README.md will be used if available
+  --sb-doc SB_DOC       Path to a doc file for sb app. If not provided,
+                        README.md will be used if available
   --dump-sb-app         Dump created sb app to file if true and exit
-  --no-package          Only provide a sb app schema and a git URL for entrypoint
+  --no-package          Only provide a sb app schema and a git URL for
+                        entrypoint
   --executor-version EXECUTOR_VERSION
-                        Version of the Nextflow executor to be used with the app.
+                        Version of the Nextflow executor to be used with the
+                        app.
+  --execution-mode {single-instance,multi-instance}
+                        Execution mode for your application.
   --json                Dump sb app schema in JSON format (YAML by default)
   --sb-schema SB_SCHEMA
-                        Do not create new schema, use this schema file. It is sb_nextflow_schema in JSON or YAML format.
-  --output-schema-files OUTPUT_SCHEMA_FILES [OUTPUT_SCHEMA_FILES ...]
-                        Additional output schema files in CWL or tower.yml format.
-  --input-schema-files INPUT_SCHEMA_FILES [INPUT_SCHEMA_FILES ...]
-                        Additional input schema files in CWL format.
-  --revision-note REVISION_NOTE [REVISION_NOTE ...]
-                        Revision note to be placed in the CWL schema if the app is uploaded to the sbg platform.
-  --manual-validation   You will have to provide validation for all 'string' type inputs if are string (str), file (file), directory (dir), list of file (files), or list of directory (dirs) type inputs.
-
+                        Do not create new schema, use this schema file. It is
+                        sb_nextflow_schema in JSON or YAML format.
+  --revision-note REVISION_NOTE
+                        Revision note to be placed in the CWL schema if the
+                        app is uploaded to the sbg platform.
 ```
 ### Example
 
@@ -97,24 +106,41 @@ $ sbpack_nf --profile default --workflow-path /path/to/workflow_dir
 # sbcopy
 
 Developed to enable deep copying of Nextflow and WDL apps on the SB platform between projects.
-Note: The link between the original, and the new app will not be available. 
+This tool also allows copying between divisions and platforms. When used to perform this copy action, it requires credentials for both the source and the destination environment. Both are provided to the `--profile` argument in the source, target order. 
+Note: The link between the original, and the new app will not be available.
 
 ### Usage
 
 ```
 sbcopy -h
-usage: sbcopy [-h] [--profile PROFILE] --appid APPID --projectid PROJECTID
+usage: copy_app.py [-h] [--profile PROFILE [PROFILE ...]] --appid APPID
+                   --projectid PROJECTID
 
 optional arguments:
   -h, --help            show this help message and exit
-  --profile PROFILE     SB platform profile as set in the SB API credentials file.
-  --appid APPID         What to copy? Takes the form {user or division}/{project}/{app_id} or {user or division}/{project}/{app_id}/{revision_no}.
+  --profile PROFILE [PROFILE ...]
+                        SB platform profile as set in the SB API credentials
+                        file. If you are using sbcopy to copy an app from one
+                        division to another, please provide two profiles -
+                        first profile for the source app (appid), and second
+                        for the destination project (projectid).
+  --appid APPID         What to copy? Takes the form {user or
+                        division}/{project}/{app_id} or {user or
+                        division}/{project}/{app_id}/{revision_no}.
   --projectid PROJECTID
-                        Where to copy? Takes the form {user or division}/{project}
+                        Where to copy? Takes the form {user or
+                        division}/{project}
+
 ```
 
-### Example
+### Examples
 
+Copying an app from one project to another within the same division.
 ```
 sbcopy --appid division-name/project-name/app-name --projectid division-name/destination-project-name
+```
+
+Copying an app from one division to another.
+```
+sbcopy --profile source_division target_division --appid source-division-name/project-name/app-name --projectid target-division-name/destination-project-name
 ```
