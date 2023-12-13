@@ -23,6 +23,7 @@ from sbpack.noncwl.utils import (
     nf_to_sb_input_mapper,
 )
 from sbpack.noncwl.constants import (
+    sample_sheet,
     ExecMode,
     GENERIC_FILE_ARRAY_INPUT,
     GENERIC_NF_OUTPUT_DIRECTORY,
@@ -30,12 +31,15 @@ from sbpack.noncwl.constants import (
     SKIP_NEXTFLOW_TOWER_KEYS,
     EXTENSIONS,
     NF_TO_CWL_CATEGORY_MAP,
+    SAMPLE_SHEET_FILE_ARRAY_INPUT,
+    SAMPLE_SHEET_SWITCH,
 )
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 NF_SCHEMA_DEFAULT_NAME = 'nextflow_schema.json'
+SB_SCHEMA_DEFAULT_NAME = 'sb_nextflow_schema'
 
 
 class SBNextflowWrapper:
@@ -204,6 +208,161 @@ class SBNextflowWrapper:
 
         return cwl_outputs
 
+    def parse_sample_sheet_schema(self, path):
+        """
+        Example sample sheet:
+        sample_sheet_input: input_sample_sheet  # taken from app wrapper
+        sample_sheet_name: samplesheet.csv
+        header:
+          - SampleID
+          - Fastq1
+          - Fastq2
+        rows:
+          - sample_id
+          - path
+          - path
+        defaults:
+          - NA
+          - NA
+          - NA
+        group_by: sample_id
+        format_: csv
+
+        """
+        schema = yaml.safe_load(path)
+
+        sample_sheet_input = schema.get('sample_sheet_input')
+        sample_sheet_name = schema.get('sample_sheet_name', 'samplesheet')
+        header = schema.get('header', 'null')
+
+        # fix rows
+        rows = schema.get('rows')
+        for i, r in enumerate(rows):
+            if "." not in r:
+                if r == 'path':
+                    n = 0
+                    new_r = f'files[{n}].path'
+                    while new_r in rows:
+                        n += 1
+                        new_r = f'files[{n}].path'
+                    rows[i] = new_r
+                else:
+                    rows[i] = f'files[0].metadata.{r}'
+
+        defaults = schema.get('defaults', 'null')
+
+        # fix group by
+        group_by = schema.get('group_by')
+        if type(group_by) is str:
+            group_by = [group_by]
+        for i, gb in enumerate(group_by):
+
+            if "." not in gb:
+                if gb in ['file', 'none']:
+                    group_by[i] = 'file.path'
+                else:
+                    group_by[i] = f'file.metadata.{gb}'
+
+        format_ = schema.get('format_', None)
+
+        if format_ and not sample_sheet_name.endswith(format_):
+            sample_sheet_name += f".{format_}".lower()
+
+        if not format_ and not sample_sheet_name.endswith(['.tsv', '.csv']):
+            raise Exception('Sample sheet format could not be identified. '
+                            'Please specify one of "tsv" or "csv" in the '
+                            'sample sheet schema file.')
+
+        if not format_ and sample_sheet_name.endswith(['.tsv', '.csv']):
+            format_ = sample_sheet_name.split('.').pop().lower()
+
+        if format_.lower() not in ['tsv', 'csv']:
+            raise Exception(f'Unrecognized sample sheet format "{format_}".')
+
+        # Step 1:
+        # add a new input to the pipeline
+        #    - new input must not clash with other inputs by ID
+        # Ensure that the new input is unique
+        all_input_ids = [inp['id'] for inp in self.sb_wrapper['inputs'] if 'id' in inp]
+        file_input_id = 'file_input'
+        temp_id = file_input_id
+        i = 0
+        while temp_id in all_input_ids:
+            i += 1
+            temp_id = f"{file_input_id}_{i}"
+        file_input_id = temp_id
+
+        # Create the sample sheet file array input
+        ss_file_input = SAMPLE_SHEET_FILE_ARRAY_INPUT
+        ss_file_input['id'] = file_input_id
+
+        self.sb_wrapper['inputs'].append(ss_file_input)
+
+        # Step 2:
+        # add argument for sample sheet
+        #    - requires: sample sheet input (sample_sheet_input),
+        #                file input (ss_file_input)
+        #    - if the sample sheet is provided on input,
+        #      do not generate a new ss
+        if 'arguments' not in self.sb_wrapper:
+            self.sb_wrapper['arguments'] = []
+
+        for i, inp in enumerate(self.sb_wrapper['inputs']):
+            if inp['id'] == sample_sheet_input:
+                inp['loadContents'] = True
+                prefix = inp['inputBinding']['prefix']
+                inp.pop('inputBinding')
+                break
+        else:
+            raise KeyError(
+                f'SampleSheet input with input id {sample_sheet_input} '
+                f'not found.'
+            )
+
+        self.sb_wrapper['arguments'].append(
+            {
+                "prefix": prefix,
+                "shellQuote": False,
+                "valueFrom": SAMPLE_SHEET_SWITCH.format(
+                    file_input=f"inputs.{file_input_id}",
+                    sample_sheet=f"inputs.{sample_sheet_input}",
+                    sample_sheet_name=sample_sheet_name,
+                )
+            }
+        )
+
+        # Step 3:
+        # add file requirement
+        #    - requires: sample sheet schema
+        #    - add InitialWorkDirRequirement if there are none
+        #    - if there are, append the entry to listing
+        ss = sample_sheet(
+            file_name=sample_sheet_name,
+            sample_sheet_input=f"inputs.{sample_sheet_input}",
+            format_=format_,
+            input_source=f"inputs.{file_input_id}",
+            header=header,
+            rows=rows,
+            defaults=defaults,
+            group_by=group_by,
+        )
+
+        if 'requirements' not in self.sb_wrapper:
+            self.sb_wrapper['requirements'] = []
+
+        for i, requirement in enumerate(self.sb_wrapper['requirements']):
+            if requirement['class'] == ss['class']:
+                requirement['listing'].extend(ss['listing'])
+                self.sb_wrapper['requirements'][i] = requirement
+                break
+        else:
+            self.sb_wrapper['requirements'].append(ss)
+        self.sb_wrapper['requirements'].append(
+            {
+                "class": "LoadListingRequirement"
+            }
+        )
+
     def make_output_type(self, key, output_dict, is_record=False):
         """
         This creates an output of specific type based on information provided
@@ -312,7 +471,7 @@ class SBNextflowWrapper:
             if key == "reports" and type(value) is dict:
                 temp = value.copy()
                 for k, v in temp.items():
-                    value[f"work/**/**/{k}"] = v
+                    value[f"work/**/{k}"] = v
                     del value[k]
 
             outputs.append(
@@ -347,8 +506,23 @@ class SBNextflowWrapper:
         """
         Dump SB wrapper for nextflow workflow to a file
         """
+        basename = SB_SCHEMA_DEFAULT_NAME
+        counter = 0
         sb_wrapper_path = os.path.join(
-            self.workflow_path, f'sb_nextflow_schema.{out_format}')
+            self.workflow_path,
+            f'{basename}.{out_format}'
+        )
+
+        while os.path.exists(sb_wrapper_path):
+            tried = sb_wrapper_path
+            counter += 1
+            sb_wrapper_path = os.path.join(
+                self.workflow_path,
+                f'{basename}.{counter}.{out_format}'
+            )
+            logger.warning(f"File with {tried} already exists. "
+                           f"Trying {sb_wrapper_path}")
+
         if out_format in EXTENSIONS.yaml_all:
             with open(sb_wrapper_path, 'w') as f:
                 yaml.dump(self.sb_wrapper, f, indent=4, sort_keys=True)
@@ -358,7 +532,8 @@ class SBNextflowWrapper:
 
     def generate_sb_app(
             self, sb_schema=None, sb_entrypoint='main.nf',
-            executor_version=None, execution_mode=None
+            executor_version=None, execution_mode=None,
+            sample_sheet_schema=None,
     ):  # default nextflow entrypoint
         """
         Generate an SB app for a nextflow workflow, OR edit the one created and
@@ -380,6 +555,9 @@ class SBNextflowWrapper:
             self.sb_wrapper['inputs'] = self.generate_sb_inputs()
             self.sb_wrapper['outputs'] = self.generate_sb_outputs()
             self.sb_wrapper['requirements'] = WRAPPER_REQUIREMENTS
+
+            if sample_sheet_schema:
+                self.parse_sample_sheet_schema(open(sample_sheet_schema))
 
             app_content = dict()
             if self.sb_package_id:
@@ -466,14 +644,22 @@ def main():
     )
     parser.add_argument(
         "--sb-schema", required=False,
-        help="Do not create new schema, use this schema file. "
-             "It is sb_nextflow_schema in JSON or YAML format.",
+        help=f"Do not create new schema, use this schema file. "
+             f"It is {SB_SCHEMA_DEFAULT_NAME} in JSON or YAML format.",
     )
     parser.add_argument(
         "--revision-note", required=False,
         default=None, type=str,
         help="Revision note to be placed in the CWL schema if the app is "
              "uploaded to the sbg platform.",
+    )
+    parser.add_argument(
+        "--sample-sheet-schema", required=False,
+        default=None, type=str,
+        help="Path to the sample sheet schema yaml. The sample sheet schema "
+             "should contain the following keys: 'sample_sheet_input', "
+             "'sample_sheet_name', 'header', 'rows', 'defaults', 'group_by', "
+             "'format_'"
     )
 
     args = parser.parse_args()
@@ -505,11 +691,13 @@ def main():
             project_id=project_id,
             folder_name='nextflow_workflows'
         )
+
         sb_app = nf_wrapper.generate_sb_app(
             sb_entrypoint=entrypoint,
             sb_schema=args.sb_schema,
             executor_version=args.executor_version,
-            execution_mode=args.execution_mode.value,
+            execution_mode=args.execution_mode,
+            sample_sheet_schema=args.sample_sheet_schema,
         )
 
     else:
@@ -533,6 +721,7 @@ def main():
             sb_entrypoint=entrypoint,
             executor_version=args.executor_version,
             execution_mode=args.execution_mode,
+            sample_sheet_schema=args.sample_sheet_schema,
         )
         # Dump app to local file
         out_format = EXTENSIONS.json if args.json else EXTENSIONS.yaml
