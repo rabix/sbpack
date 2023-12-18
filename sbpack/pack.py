@@ -374,6 +374,19 @@ def pack(cwl_path: str, filter_non_sbg_tags=False, add_ids=False):
 
     return cwl
 
+def update_registry(new_docker_registry, cwl):
+    '''
+    Walk through entire cwl and update references for dockerPull 
+    '''
+    if isinstance(cwl, dict):
+        for k, v in cwl.items():
+            if k == "dockerPull":
+                cwl[k] = f"{new_docker_registry}/{v}"
+            elif isinstance(v, dict):
+                update_registry(new_docker_registry, v)
+            elif isinstance(v, list):
+                for item in v:
+                    update_registry(new_docker_registry, item)
 
 def main():
 
@@ -393,6 +406,9 @@ def main():
                         action="store_true",
                         help="Filter out custom tags that are not 'sbg:'")
 
+    parser.add_argument("--pack-only", action="store_true", help="Pack CWL without updating app")
+    parser.add_argument("--json", action="store_true", help="Output in JSON format, not YAML.")
+    parser.add_argument("--update-docker-registry", action="store", help="Update docker registry in packed CWL")
     args = parser.parse_args()
 
     profile, appid, cwl_path = args.profile, args.appid, args.cwl_path
@@ -407,6 +423,15 @@ def main():
         return
 
     cwl = pack(cwl_path, filter_non_sbg_tags=args.filter_non_sbg_tags)
+    if args.update_docker_registry:
+        update_registry(args.update_docker_registry, cwl)
+
+    if args.pack_only:
+        if args.json:
+            json.dump(cwl, sys.stdout, indent=4)
+        else:
+            fast_yaml.dump(cwl, sys.stdout)
+        return
 
     api = lib.get_profile(profile)
 
