@@ -34,7 +34,20 @@ def nf_to_sb_input_mapper(port_id, port_data, category=None, required=False):
     """
     sb_input = dict()
     sb_input['id'] = port_id
-    sb_input['type'] = nf_schema_type_mapper(port_data)
+    # Do not convert outdir
+    if port_id == 'outdir':
+        port_data['format'] = ''
+
+    enum_symbols = port_data.get('enum', [])
+
+    if enum_symbols:
+        sb_input['type'] = enum_type(
+            id_=port_id,
+            symbols=enum_symbols,
+        )
+    else:
+        sb_input['type'] = nf_schema_type_mapper(port_data)
+
     sb_input['inputBinding'] = {
         'prefix': f'--{port_id}',
     }
@@ -58,7 +71,7 @@ def nf_to_sb_input_mapper(port_id, port_data, category=None, required=False):
     return sb_input
 
 
-def type_mapper(type_, format_):
+def type_mapper(type_, format_) -> list:
     if isinstance(type_, str):
         if type_ == 'string' and 'path' in format_:
             if format_ == 'file-path':
@@ -85,6 +98,17 @@ def type_mapper(type_, format_):
         for m in type_:
             temp_type_list.extend(type_mapper(m, format_))
         return temp_type_list
+
+
+def enum_type(id_: str, symbols: list) -> list:
+    # This can be generalized so that it encompasses create_profile_enum
+    return [
+        {
+            "type": "enum",
+            "name": id_,
+            "symbols": symbols
+        }
+    ]
 
 
 def create_profile_enum(profiles: list):

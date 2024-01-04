@@ -1,4 +1,6 @@
 from enum import Enum
+from sbpack.noncwl import read_js_template
+
 
 # ############################## Generic Bits ############################### #
 PACKAGE_SIZE_LIMIT = 100 * 1024 * 1024  # 100 MB
@@ -19,130 +21,8 @@ class EXTENSIONS:
 # ############################ CWL Standard Bits ############################ #
 # A generic SB input array of files that should be available on the
 # instance but are not explicitly provided to the execution as wdl params.
-SAMPLE_SHEET_FUNCTION = """
-${{
-    if (!inputs.input_files){{
-        return \"\";
-    }};
-    
-    var input_source = [].concat(inputs.input_files);
-    var sample_sheet_input = inputs.sample_sheet_input;
-    var sample_sheet = [];
-    
-    if (sample_sheet_input){{
-        var contents = sample_sheet_input.contents.split(\"\\n\");
-        var format_ = sample_sheet_input.nameext.slice(1);
-        
-        var split_char = \"\";
-        
-        switch (format_) {{
-            case 'csv':
-                split_char = \",\";
-            case 'tsv':
-                split_char = \"\\t\";
-        }};
-        
-        for (var i=0; i < input_source.length; i++){{
-            var file = input_source[i];
-            for (var row=0; row < contents.length; row++){{
-                var row_data = contents[row].split(split_char);
-                for (var column=0; column < row_data.length; column++){{
-                    var cell = row_data[column];
-                    if (cell == file.basename){{
-                        cell = file.path;
-                    }}
-                    row_data[column] = cell;
-                }}
-                contents[row] = row_data.join(split_char);
-            }}
-        }}
-        sample_sheet = contents;
-    }} else {{
-        var format_ = inputs.format;
-        var header = inputs.header;
-        var row = inputs.rows;
-        var defaults = inputs.defaults;
-        var group_by = inputs.group_by;
-        
-        var split_char = \"\";
-        
-        switch (format_) {{
-            case 'csv':
-                split_char = \",\";
-            case 'tsv':
-                split_char = \"\\t\";
-        }}
-        var sample_sheet = [];
-        
-        if (header){{
-            sample_sheet.push(header.join(split_char));
-        }};
-        var groups = {{}};
-        
-        for (var i = 0; i < input_source.length; i ++){{
-            var file = input_source[i];
-            var group_criteria = [];
-            for (var j = 0; j < group_by.length; j ++){{
-                group_criteria.push(eval(group_by[j]));
-            }}
-            try {{
-                groups[group_criteria.join(\".\")].push(file)
-            }} catch(ex) {{
-                groups[group_criteria.join(\".\")] = [file]
-            }}
-        }}
-        
-        if (defaults.length < row.length){{
-            for (var i = 0; i < row.length - defaults.length + 1; i++) defaults.push(\"\");
-        }};
-        
-        for (k in groups){{
-            var row_data = [];
-            var files = groups[k];
-            
-            files.sort(function(a, b) {{
-                var name_a = a.basename.toUpperCase();
-                var name_b = b.basename.toUpperCase();
-                if (name_a < name_b){{
-                    return -1;
-                }} else if (name_a > name_b){{
-                    return 1;
-                }} else {{
-                    return 0;
-                }}
-            }});
-            
-            for (var j = 0; j < row.length; j ++){{
-                var d = \"\";
-                try {{
-                    var d = eval(row[j]);
-                    if (d == undefined){{
-                        d = defaults[j];
-                    }}
-                }} catch(ex) {{
-                    var d = defaults[j];
-                }}
-                row_data.push(d);
-            }}
-            
-            sample_sheet.push(row_data.join(split_char));
-        }}
-    }}
-    return sample_sheet.join(\"\\n\");
-}}
-"""
-
-SAMPLE_SHEET_SWITCH = """
-${{
-    if ({file_input}) {{
-        return '{sample_sheet_name}';
-    }} else if (!{file_input} && {sample_sheet}){{
-        return {sample_sheet};
-    }} else {{
-        return "";
-    }}
-}}
-"""
+SAMPLE_SHEET_FUNCTION = read_js_template("sample_sheet_generator.js")
+SAMPLE_SHEET_SWITCH = read_js_template("sample_sheet_switch.js")
 
 GENERIC_FILE_ARRAY_INPUT = {
     "id": "auxiliary_files",
@@ -183,18 +63,19 @@ GENERIC_WDL_OUTPUT_DIRECTORY = {
     }
 }
 
-# Requirements to be added to sb wrapper
-WRAPPER_REQUIREMENTS = [
-    {
-        "class": "InlineJavascriptRequirement"
-    },
-    {
-        "class": "InitialWorkDirRequirement",
-        "listing": [
-            "$(inputs.auxiliary_files)"
-        ]
-    }
-]
+# Requirements for sb wrapper
+INLINE_JS_REQUIREMENT = {
+    'class': "InlineJavascriptRequirement"
+}
+LOAD_LISTING_REQUIREMENT = {
+    'class': "LoadListingRequirement"
+}
+AUX_FILES_REQUIREMENT = {
+    "class": "InitialWorkDirRequirement",
+    "listing": [
+        "$(inputs.auxiliary_files)"
+    ]
+}
 
 
 def sample_sheet(
@@ -218,6 +99,9 @@ def sample_sheet(
 
 # ############################## Nextflow Bits ############################## #
 # Keys that should be skipped when parsing nextflow tower yaml file
+
+NF_SCHEMA_DEFAULT_NAME = 'nextflow_schema.json'
+SB_SCHEMA_DEFAULT_NAME = 'sb_nextflow_schema'
 
 # Mappings of nextflow input fields to SB input fields
 #  nextflow_key: cwl_key mapping

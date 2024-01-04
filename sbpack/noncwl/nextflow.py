@@ -27,24 +27,26 @@ from sbpack.noncwl.constants import (
     ExecMode,
     GENERIC_FILE_ARRAY_INPUT,
     GENERIC_NF_OUTPUT_DIRECTORY,
-    WRAPPER_REQUIREMENTS,
+    INLINE_JS_REQUIREMENT,
+    LOAD_LISTING_REQUIREMENT,
+    AUX_FILES_REQUIREMENT,
     SKIP_NEXTFLOW_TOWER_KEYS,
     EXTENSIONS,
     NF_TO_CWL_CATEGORY_MAP,
     SAMPLE_SHEET_FILE_ARRAY_INPUT,
     SAMPLE_SHEET_SWITCH,
+    NF_SCHEMA_DEFAULT_NAME,
+    SB_SCHEMA_DEFAULT_NAME,
 )
+from sbpack.noncwl.wrapper import Wrapper
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-NF_SCHEMA_DEFAULT_NAME = 'nextflow_schema.json'
-SB_SCHEMA_DEFAULT_NAME = 'sb_nextflow_schema'
-
 
 class SBNextflowWrapper:
     def __init__(self, workflow_path, dump_schema=False, sb_doc=None):
-        self.sb_wrapper = dict()
+        self.sb_wrapper = Wrapper()
         self.nf_ps = PipelineSchema()
         self.sb_package_id = None
         self.workflow_path = workflow_path
@@ -101,7 +103,6 @@ class SBNextflowWrapper:
         """
         Generate SB inputs schema
         """
-        cwl_inputs = list()
 
         # ## Add profiles to the input ## #
         self.nf_config_files = get_config_files(self.workflow_path)
@@ -114,7 +115,9 @@ class SBNextflowWrapper:
         profiles_choices = sorted(list(set(profiles.keys())))
 
         if profiles:
-            cwl_inputs.append(create_profile_enum(profiles_choices))
+            self.sb_wrapper.safe_add_input(
+                create_profile_enum(profiles_choices)
+            )
 
         # Optional inputs due to profiles
         # optional_inputs = []
@@ -131,7 +134,7 @@ class SBNextflowWrapper:
                 nf_schema = yaml.safe_load(f)
 
             for p_key, p_value in nf_schema.get('properties', {}).items():
-                cwl_inputs.append(
+                self.sb_wrapper.safe_add_input(
                     nf_to_sb_input_mapper(p_key, p_value))
             for def_name, definition in nf_schema.get(
                     'definitions', {}).items():
@@ -153,7 +156,7 @@ class SBNextflowWrapper:
                     #         port_id not in optional_inputs:
                     #     req = True
 
-                    cwl_inputs.append(nf_to_sb_input_mapper(
+                    self.sb_wrapper.safe_add_input(nf_to_sb_input_mapper(
                         port_id,
                         port_data,
                         category=input_category,
@@ -161,52 +164,25 @@ class SBNextflowWrapper:
                     ))
 
         # Add the generic file array input - auxiliary files
-        cwl_inputs.append(GENERIC_FILE_ARRAY_INPUT)
-
-        input_ids = set()
-        for inp in cwl_inputs:
-            base_id = inp['id']
-            id_ = base_id
-            i = 1
-            while id_ in input_ids:
-                id_ = f'{base_id}_{i}'
-                i += 1
-
-            input_ids.add(id_)
-            inp['id'] = id_
-
-        return cwl_inputs
+        self.sb_wrapper.safe_add_input(GENERIC_FILE_ARRAY_INPUT)
+        self.sb_wrapper.add_requirement(AUX_FILES_REQUIREMENT)
+        self.sb_wrapper.add_requirement(INLINE_JS_REQUIREMENT)
 
     def generate_sb_outputs(self):
         """
         Generate SB output schema
         """
-        output_ids = set()
-        cwl_outputs = list()
-
         if get_tower_yml(self.workflow_path):
-            cwl_outputs.extend(
-                self.parse_output_yml(
-                    open(get_tower_yml(self.workflow_path)))
-            )
+            for output in self.parse_output_yml(
+                    open(get_tower_yml(self.workflow_path))
+            ):
+                self.sb_wrapper.safe_add_output(output)
 
         # if the only output is reports, or there are no outputs, add generic
-        if len(cwl_outputs) == 0 or \
-                (len(cwl_outputs) == 1 and cwl_outputs[0]['id'] == 'reports'):
-            cwl_outputs.append(GENERIC_NF_OUTPUT_DIRECTORY)
-
-        for output in cwl_outputs:
-            base_id = output['id']
-            id_ = base_id
-            i = 1
-            while id_ in output_ids:
-                id_ = f'{base_id}_{i}'
-                i += 1
-
-            output_ids.add(id_)
-            output['id'] = id_
-
-        return cwl_outputs
+        if len(self.sb_wrapper.outputs) == 0 or \
+                (len(self.sb_wrapper.outputs) == 1 and
+                 self.sb_wrapper.outputs[0]['id'] == 'reports'):
+            self.sb_wrapper.safe_add_output(GENERIC_NF_OUTPUT_DIRECTORY)
 
     def parse_sample_sheet_schema(self, path):
         """
@@ -283,20 +259,12 @@ class SBNextflowWrapper:
         # add a new input to the pipeline
         #    - new input must not clash with other inputs by ID
         # Ensure that the new input is unique
-        all_input_ids = [inp['id'] for inp in self.sb_wrapper['inputs'] if 'id' in inp]
-        file_input_id = 'file_input'
-        temp_id = file_input_id
-        i = 0
-        while temp_id in all_input_ids:
-            i += 1
-            temp_id = f"{file_input_id}_{i}"
-        file_input_id = temp_id
 
         # Create the sample sheet file array input
-        ss_file_input = SAMPLE_SHEET_FILE_ARRAY_INPUT
-        ss_file_input['id'] = file_input_id
-
-        self.sb_wrapper['inputs'].append(ss_file_input)
+        file_input = self.sb_wrapper.safe_add_input(
+            SAMPLE_SHEET_FILE_ARRAY_INPUT
+        )
+        file_input_id = file_input.get('id')
 
         # Step 2:
         # add argument for sample sheet
@@ -304,22 +272,18 @@ class SBNextflowWrapper:
         #                file input (ss_file_input)
         #    - if the sample sheet is provided on input,
         #      do not generate a new ss
-        if 'arguments' not in self.sb_wrapper:
-            self.sb_wrapper['arguments'] = []
+        input_changes = {
+            'id': sample_sheet_input,
+            'loadContents': True,
+            'inputBinding': 'NONE'
+        }
 
-        for i, inp in enumerate(self.sb_wrapper['inputs']):
-            if inp['id'] == sample_sheet_input:
-                inp['loadContents'] = True
-                prefix = inp['inputBinding']['prefix']
-                inp.pop('inputBinding')
-                break
-        else:
-            raise KeyError(
-                f'SampleSheet input with input id {sample_sheet_input} '
-                f'not found.'
-            )
+        prefix = self.sb_wrapper.get_input(
+            sample_sheet_input
+        )['inputBinding']['prefix']
 
-        self.sb_wrapper['arguments'].append(
+        self.sb_wrapper.update_input(input_changes)
+        self.sb_wrapper.add_argument(
             {
                 "prefix": prefix,
                 "shellQuote": False,
@@ -347,21 +311,9 @@ class SBNextflowWrapper:
             group_by=group_by,
         )
 
-        if 'requirements' not in self.sb_wrapper:
-            self.sb_wrapper['requirements'] = []
-
-        for i, requirement in enumerate(self.sb_wrapper['requirements']):
-            if requirement['class'] == ss['class']:
-                requirement['listing'].extend(ss['listing'])
-                self.sb_wrapper['requirements'][i] = requirement
-                break
-        else:
-            self.sb_wrapper['requirements'].append(ss)
-        self.sb_wrapper['requirements'].append(
-            {
-                "class": "LoadListingRequirement"
-            }
-        )
+        self.sb_wrapper.add_requirement(ss)
+        self.sb_wrapper.add_requirement(INLINE_JS_REQUIREMENT)
+        self.sb_wrapper.add_requirement(LOAD_LISTING_REQUIREMENT)
 
     def make_output_type(self, key, output_dict, is_record=False):
         """
@@ -525,10 +477,10 @@ class SBNextflowWrapper:
 
         if out_format in EXTENSIONS.yaml_all:
             with open(sb_wrapper_path, 'w') as f:
-                yaml.dump(self.sb_wrapper, f, indent=4, sort_keys=True)
+                yaml.dump(self.sb_wrapper.dump(), f, indent=4, sort_keys=True)
         elif out_format in EXTENSIONS.json_all:
             with open(sb_wrapper_path, 'w') as f:
-                json.dump(self.sb_wrapper, f, indent=4, sort_keys=True)
+                json.dump(self.sb_wrapper.dump(), f, indent=4, sort_keys=True)
 
     def generate_sb_app(
             self, sb_schema=None, sb_entrypoint='main.nf',
@@ -549,12 +501,11 @@ class SBNextflowWrapper:
                                               new_code_package)
 
         else:
-            self.sb_wrapper['cwlVersion'] = 'None'
-            self.sb_wrapper['class'] = 'nextflow'
+            self.sb_wrapper.cwl_version = 'None'
+            self.sb_wrapper.class_ = 'nextflow'
 
-            self.sb_wrapper['inputs'] = self.generate_sb_inputs()
-            self.sb_wrapper['outputs'] = self.generate_sb_outputs()
-            self.sb_wrapper['requirements'] = WRAPPER_REQUIREMENTS
+            self.generate_sb_inputs()
+            self.generate_sb_outputs()
 
             if sample_sheet_schema:
                 self.parse_sample_sheet_schema(open(sample_sheet_schema))
@@ -568,25 +519,19 @@ class SBNextflowWrapper:
                 app_content['executor_version'] = executor_version or \
                                                   self.executor_version
 
-            self.sb_wrapper['app_content'] = app_content
+            self.sb_wrapper.set_app_contents(**app_content)
 
             if execution_mode or self.execution_mode:
-                if 'hints' not in self.sb_wrapper:
-                    self.sb_wrapper['hints'] = []
-
-                self.sb_wrapper['hints'].append(
-                    {
-                        'class': 'sbg:NextflowExecutionMode',
-                        'value': execution_mode.value
-                    }
-                )
+                self.sb_wrapper.add_hint({
+                    'class': 'sbg:NextflowExecutionMode',
+                    'value': execution_mode.value
+                })
 
             if self.sb_doc:
-                self.sb_wrapper['doc'] = self.sb_doc
+                self.sb_wrapper.add_docs(self.sb_doc)
             elif get_readme(self.workflow_path):
                 with open(get_readme(self.workflow_path), 'r') as f:
-                    self.sb_wrapper['doc'] = f.read()
-            return self.sb_wrapper
+                    self.sb_wrapper.add_docs(f.read())
 
 
 def main():
@@ -692,7 +637,7 @@ def main():
             folder_name='nextflow_workflows'
         )
 
-        sb_app = nf_wrapper.generate_sb_app(
+        nf_wrapper.generate_sb_app(
             sb_entrypoint=entrypoint,
             sb_schema=args.sb_schema,
             executor_version=args.executor_version,
@@ -717,7 +662,7 @@ def main():
         nf_wrapper.nf_schema_path = nf_schema_path
 
         # Create app
-        sb_app = nf_wrapper.generate_sb_app(
+        nf_wrapper.generate_sb_app(
             sb_entrypoint=entrypoint,
             executor_version=args.executor_version,
             execution_mode=args.execution_mode,
@@ -734,9 +679,8 @@ def main():
         if args.revision_note:
             revision_note = str(args.revision_note)
 
-        sb_app["sbg:revisionNotes"] = revision_note
-
-        install_or_upgrade_app(api, args.appid, sb_app)
+        nf_wrapper.sb_wrapper.add_revision_note(revision_note)
+        install_or_upgrade_app(api, args.appid, nf_wrapper.sb_wrapper.dump())
 
 
 if __name__ == "__main__":
