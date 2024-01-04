@@ -519,7 +519,7 @@ class SBNextflowWrapper:
                 app_content['executor_version'] = executor_version or \
                                                   self.executor_version
 
-            self.sb_wrapper.set_app_contents(**app_content)
+            self.sb_wrapper.set_app_content(**app_content)
 
             if execution_mode or self.execution_mode:
                 self.sb_wrapper.add_hint({

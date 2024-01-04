@@ -4,7 +4,7 @@ import logging
 class Wrapper:
     inputs = list()
     outputs = list()
-    app_contents = dict()
+    app_content = dict()
     class_ = None
     cwl_version = None
     arguments = None
@@ -123,7 +123,7 @@ class Wrapper:
             # add new class
             self.requirements.append(obj)
 
-    def set_app_contents(
+    def set_app_content(
             self, code_package=None, entrypoint=None, executor_version=None
     ):
         payload = dict()
@@ -135,7 +135,7 @@ class Wrapper:
         if code_package:
             payload['executor_version'] = executor_version
 
-        self.app_contents.update(payload)
+        self.app_content.update(payload)
 
     def add_argument(self, arg):
         if not self.arguments:
@@ -156,8 +156,8 @@ class Wrapper:
     def dump(self):
         wrapper = dict()
 
-        if self.app_contents:
-            wrapper['app_contents'] = self.app_contents
+        if self.app_content:
+            wrapper['app_content'] = self.app_content
 
         if self.docs:
             wrapper['docs'] = self.docs
