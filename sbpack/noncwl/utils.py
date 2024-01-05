@@ -333,15 +333,23 @@ def get_latest_sb_schema(path):
 
 
 def get_executor_version(string):
-    version = re.findall(
-        r"\[Nextflow]\([^(]+(\d{2}\.\d+\.\d+)[^)]+\)",
+    result = re.findall(
+        r"\[Nextflow]\([^(]+(%E2%89%A5|%E2%89%A4|=|>|<)(\d{2}\.\d+\.\d+)[^)]+\)",
         string
     )
-    if version:
-        print(f"Identified nextflow executor version requirement <{version[0]}>")
-        return f"v{version[0]}"
+    if result:
+        sign, version = result.pop(0)
+        if sign == "%E2%89%A5":
+            sign = ">="
+        elif sign == "%E2%89%A4":
+            sign = "<="
+        elif not sign:
+            sign = "="
+
+        print(f"Identified nextflow executor version requirement {sign} {version}")
+        return sign, version
     else:
-        return None
+        return None, None
 
 
 def get_sample_sheet_schema(path):

@@ -6,6 +6,7 @@ import os
 import yaml
 
 import sbpack.lib as lib
+from packaging import version
 
 from nf_core.schema import PipelineSchema
 from sbpack.version import __version__
@@ -582,13 +583,45 @@ def main():
         with open(get_readme(args.workflow_path), 'r') as f:
             sb_doc = f.read()
 
+    test_sign, test_executor_version = get_executor_version(sb_doc or "")
+    if test_sign and executor_version and "edge" not in executor_version:
+        if test_sign == "=" and version.parse(executor_version) != \
+                version.parse(test_executor_version):
+            logger.warning(
+                f"Provided executor version {executor_version} does not"
+                f" match detected version {test_sign}{test_executor_version}"
+            )
+        if test_sign == ">" and version.parse(executor_version) <= \
+                version.parse(test_executor_version):
+            logger.warning(
+                f"Provided executor version {executor_version} does not"
+                f" match detected version {test_sign}{test_executor_version}"
+            )
+        if test_sign == "<" and version.parse(executor_version) >= \
+                version.parse(test_executor_version):
+            logger.warning(
+                f"Provided executor version {executor_version} does not"
+                f" match detected version {test_sign}{test_executor_version}"
+            )
+        if test_sign == ">=" and version.parse(executor_version) < \
+                version.parse(test_executor_version):
+            logger.warning(
+                f"Provided executor version {executor_version} does not"
+                f" match detected version {test_sign}{test_executor_version}"
+            )
+        if test_sign == "<=" and version.parse(executor_version) > \
+                version.parse(test_executor_version):
+            logger.warning(
+                f"Provided executor version {executor_version} does not"
+                f" match detected version {test_sign}{test_executor_version}"
+            )
+
     if args.auto:
         # This is where the magic happens
         if not sb_schema:
             sb_schema = get_latest_sb_schema(args.workflow_path)
         # detect nextflow executor version from description
-        if sb_doc:
-            executor_version = get_executor_version(sb_doc)
+        executor_version = test_executor_version
 
         # Set execution mode to multi-instance
         if not execution_mode:
