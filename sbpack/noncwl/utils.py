@@ -12,6 +12,7 @@ from sbpack.noncwl.constants import (
     PACKAGE_SIZE_LIMIT,
     EXTENSIONS,
     NF_TO_CWL_PORT_MAP,
+    SB_SCHEMA_DEFAULT_NAME
 )
 
 logger = logging.getLogger(__name__)
@@ -280,6 +281,7 @@ def get_tower_yml(path):
     return None
 
 
+# Nextflow
 def get_entrypoint(path):
     """
     Auto find main.nf or similar file is there is one in the path folder.
@@ -299,6 +301,55 @@ def get_entrypoint(path):
             'you want to use as the workflow entrypoint')
     elif len(possible_paths) == 1:
         return possible_paths.pop()
+    else:
+        return None
+
+
+# Nextflow
+def get_latest_sb_schema(path):
+    """
+    Auto find sb_nextflow_schema file.
+    """
+    possible_paths = []
+    for file in os.listdir(path):
+        result = re.findall(
+            fr"(.*{SB_SCHEMA_DEFAULT_NAME}\.?(\d+)?\.(ya?ml|json))", file
+        )
+        if result:
+            result = result.pop(0)
+            if not result[1]:
+                prep = 0, result[0]
+            else:
+                prep = int(result[1]), result[0]
+            possible_paths.append(prep)
+
+    if possible_paths:
+        latest = sorted(possible_paths).pop()[1]
+        sb_schema_path = os.path.join(path, latest)
+        print(f"Located latest sb_nextflow_schema at <{sb_schema_path}>")
+        return sb_schema_path
+    else:
+        return None
+
+
+def get_executor_version(string):
+    version = re.findall(
+        r"\[Nextflow]\([^(]+(\d{2}\.\d+\.\d+)[^)]+\)",
+        string
+    )
+    if version:
+        print(f"Identified nextflow executor version requirement <{version[0]}>")
+        return f"v{version[0]}"
+    else:
+        return None
+
+
+def get_sample_sheet_schema(path):
+    ss_path = os.path.join(path, "samplesheet_schema.yaml")
+
+    if os.path.exists(ss_path):
+        print(f"Located latest sample sheet schema at <{ss_path}>")
+        return ss_path
     else:
         return None
 
@@ -370,6 +421,7 @@ def parse_config_file(file_path: str) -> dict:
     return profiles
 
 
+# Deprecated
 def update_schema_code_package(sb_schema, schema_ext, new_code_package):
     """
     Update the package in the sb_schema

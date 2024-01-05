@@ -4,6 +4,7 @@ from sbpack.noncwl import read_js_template
 
 # ############################## Generic Bits ############################### #
 PACKAGE_SIZE_LIMIT = 100 * 1024 * 1024  # 100 MB
+REMOVE_INPUT_KEY = "REMOVE_THIS_KEY"
 
 
 # keep track of what extensions are applicable for processing
@@ -76,6 +77,12 @@ AUX_FILES_REQUIREMENT = {
         "$(inputs.auxiliary_files)"
     ]
 }
+
+# Legacy - Delete after updating wdl.py
+WRAPPER_REQUIREMENTS = [
+    INLINE_JS_REQUIREMENT,
+    AUX_FILES_REQUIREMENT
+]
 
 
 def sample_sheet(

@@ -1,4 +1,5 @@
 import logging
+from sbpack.noncwl.constants import REMOVE_INPUT_KEY
 
 
 class Wrapper:
@@ -10,12 +11,11 @@ class Wrapper:
     arguments = None
     requirements = None
     hints = None
-    docs = None
+    doc = None
     revision_note = None
 
     def __init__(self):
         pass
-        # Make into a singleton
 
     def get_input(self, id_):
         for inp in self.inputs:
@@ -50,11 +50,11 @@ class Wrapper:
 
     def update_input(self, inp):
         id_ = inp.get('id')
-        for i, input_ in enumerate(self.inputs):
+        for input_ in self.inputs:
             if input_['id'] == id_:
                 input_.update(inp)
-                for key in input_:
-                    if input_[key] == "NONE":
+                for key in input_.copy():
+                    if input_[key] == REMOVE_INPUT_KEY:
                         input_.pop(key)
                 break
         else:
@@ -94,11 +94,11 @@ class Wrapper:
 
     def update_output(self, out):
         id_ = out.get('id')
-        for i, output in enumerate(self.outputs):
+        for output in self.outputs:
             if output['id'] == id_:
                 output.update(out)
                 for key in output:
-                    if output[key] == "NONE":
+                    if output[key] == REMOVE_INPUT_KEY:
                         output.pop(key)
                 break
         else:
@@ -106,33 +106,34 @@ class Wrapper:
                 f'Output with id <{id_}> not found.'
             )
 
-    def add_requirement(self, obj):
+    def add_requirement(self, requirement):
         if not self.requirements:
             self.requirements = list()
 
         for req in self.requirements:
-            if req['class'] == obj['class']:
+            if req['class'] == requirement['class']:
                 # check listings -> add missing -> break
-                if 'listing' in obj:
-                    if not req['listing']:
+                if requirement['class'] == 'InitialWorkDirRequirement' and \
+                        'listing' in requirement:
+                    if 'listing' not in req:
                         req['listing'] = []
-                    req['listing'].extend(obj['listing'])
-                    req['listing'] = list(set(req['listing']))
+                    req['listing'].extend(requirement['listing'])
                 break
         else:
             # add new class
-            self.requirements.append(obj)
+            self.requirements.append(requirement)
 
     def set_app_content(
-            self, code_package=None, entrypoint=None, executor_version=None
+            self, code_package=None, entrypoint=None, executor_version=None,
+            **kwargs
     ):
         payload = dict()
 
         if code_package:
             payload['code_package'] = code_package
-        if code_package:
+        if entrypoint:
             payload['entrypoint'] = entrypoint
-        if code_package:
+        if executor_version:
             payload['executor_version'] = executor_version
 
         self.app_content.update(payload)
@@ -147,11 +148,46 @@ class Wrapper:
             self.hints = list()
         self.hints.append(hint)
 
-    def add_docs(self, docs):
-        self.docs = docs
+    def add_docs(self, doc):
+        self.doc = doc
 
     def add_revision_note(self, note):
         self.revision_note = note
+
+    def load(self, schema):
+        s_inputs = schema.get('inputs', [])
+        for input_ in s_inputs:
+            self.add_input(input_)
+
+        s_outputs = schema.get('outputs', [])
+        for output in s_outputs:
+            self.add_output(output)
+
+        s_app_content = schema.get('app_content', dict())
+        self.set_app_content(**s_app_content)
+
+        self.class_ = schema.get('class', None)
+        self.cwl_version = schema.get('cwlVersion', None)
+
+        s_arguments = schema.get('arguments', [])
+        for argument in s_arguments:
+            self.add_argument(argument)
+
+        s_requirements = schema.get('requirements', [])
+        for requirement in s_requirements:
+            self.add_requirement(requirement)
+
+        s_hints = schema.get('hints', [])
+        for hint in s_hints:
+            self.add_hint(hint)
+
+        s_doc = schema.get('doc', None)
+        if s_doc:
+            self.add_docs(s_doc)
+
+        s_revision_note = schema.get('sbg:revisionNote', None)
+        if s_revision_note:
+            self.add_revision_note(s_revision_note)
 
     def dump(self):
         wrapper = dict()
@@ -159,8 +195,8 @@ class Wrapper:
         if self.app_content:
             wrapper['app_content'] = self.app_content
 
-        if self.docs:
-            wrapper['docs'] = self.docs
+        if self.doc:
+            wrapper['doc'] = self.doc
 
         wrapper['inputs'] = self.inputs
         wrapper['outputs'] = self.outputs
@@ -181,6 +217,6 @@ class Wrapper:
             wrapper['hints'] = self.hints
 
         if self.revision_note:
-            wrapper["sbg:revisionNotes"] = self.revision_note
+            wrapper['sbg:revisionNotes'] = self.revision_note
 
         return wrapper

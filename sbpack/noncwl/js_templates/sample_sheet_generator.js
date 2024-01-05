@@ -8,7 +8,7 @@ ${{
         return 0;
     }}
 
-    var input_source = [].concat(inputs.{INPUT_FILES_PORT}).sort(compareFiles);
+    var input_source = [].concat(inputs.{input_source}).sort(compareFiles);
     if (!input_source.length == 0){{
         // Return empty file if no input files are given.
         // Ensures that sample sheet is generated only if there are files to
@@ -18,7 +18,7 @@ ${{
         return "";
     }};
 
-    var sample_sheet_input = inputs.{INPUT_SAMPLE_SHEET};
+    var sample_sheet_input = inputs.{sample_sheet_input};
 
     var sample_sheet = [];
 
@@ -53,11 +53,11 @@ ${{
         sample_sheet = contents;
     }} else {{
         // If the samples are given, create the sample sheet from input data
-        var format_ = {FORMAT};
-        var header = {HEADER};
-        var row = {ROWS};
-        var defaults = {DEFAULTS};
-        var group_by = {GROUP_BY};
+        var format_ = {format_};
+        var header = {header};
+        var row = {rows};
+        var defaults = {defaults};
+        var group_by = {group_by};
 
         var split_char = "";
         switch (format_) {{
