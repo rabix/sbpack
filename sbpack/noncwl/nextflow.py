@@ -488,7 +488,7 @@ def main():
     # CLI parameters
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--profile", default="default",
+        "--profile", default="default", required=False,
         help="SB platform profile as set in the SB API credentials file.",
     )
     parser.add_argument(
