@@ -35,9 +35,9 @@ def nf_to_sb_input_mapper(port_id, port_data, category=None, required=False):
     """
     sb_input = dict()
     sb_input['id'] = port_id
-    # Do not convert outdir
-    if port_id == 'outdir':
-        port_data['format'] = ''
+    # # Do not convert outdir
+    # if port_id == 'outdir':
+    #     port_data['format'] = ''
 
     enum_symbols = port_data.get('enum', [])
 

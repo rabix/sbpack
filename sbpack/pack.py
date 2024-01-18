@@ -17,7 +17,6 @@ import pathlib
 import urllib.parse
 import urllib.request
 from typing import Union
-from copy import deepcopy
 import json
 import enum
 
@@ -201,7 +200,7 @@ def resolve_steps(
 ):
 
     if isinstance(cwl, str):
-        raise RuntimeError(f"{base_url.getulr()}: Expecting a process, found a string")
+        raise RuntimeError(f"{base_url.geturl()}: Expecting a process, found a string")
 
     if not isinstance(cwl, dict):
         return cwl
@@ -226,9 +225,8 @@ def resolve_steps(
                     add_ids=add_ids,
                 )
                 if "id" not in v["run"] and add_ids:
-                    v["run"][
-                        "id"
-                    ] = f"{workflow_id}@step_{v['id']}@{os.path.basename(_run)}"
+                    v["run"]["id"] = f"{workflow_id}@step_{v['id']}" \
+                                     f"@{os.path.basename(_run)}"
             else:
                 v["run"] = pack_process(
                     v["run"],
@@ -297,7 +295,8 @@ def filter_out_non_sbg_tags(cwl: Union[list, dict]):
 
 
 def get_git_info(cwl_path: str) -> str:
-    import subprocess, os
+    import subprocess
+    import os
 
     source_str = cwl_path
 
@@ -307,7 +306,9 @@ def get_git_info(cwl_path: str) -> str:
         os.chdir(source_path.parent)
         try:
             origin = (
-                subprocess.check_output(["git", "config", "--get", "remote.origin.url"])
+                subprocess.check_output(
+                    ["git", "config", "--get", "remote.origin.url"]
+                )
                 .strip()
                 .decode()
             )
@@ -319,13 +320,17 @@ def get_git_info(cwl_path: str) -> str:
                 .decode()
             )
             changed = (
-                subprocess.check_output(["git", "status", source_path.name, "-s"])
+                subprocess.check_output(
+                    ["git", "status", source_path.name, "-s"]
+                )
                 .strip()
                 .decode()
             )
             if changed == "":
                 tag = (
-                    subprocess.check_output(["git", "describe", "--always"])
+                    subprocess.check_output(
+                        ["git", "describe", "--always"]
+                    )
                     .strip()
                     .decode()
                 )
@@ -376,7 +381,6 @@ def pack(cwl_path: str, filter_non_sbg_tags=False, add_ids=False):
 
 
 def main():
-
     logging.basicConfig()
     logger.setLevel(logging.INFO)
     print(
@@ -386,12 +390,23 @@ def main():
     )
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", help="SB platform profile as set in the SB API credentials file.")
-    parser.add_argument("appid", help="Takes the form {user}/{project}/{app_id}.")
-    parser.add_argument("cwl_path", help="Path  or URL to the main CWL file to be uploaded.")
-    parser.add_argument("--filter-non-sbg-tags",
-                        action="store_true",
-                        help="Filter out custom tags that are not 'sbg:'")
+    parser.add_argument(
+        "profile", "--profile",
+        help="SB platform profile as set in the SB API credentials file."
+    )
+    parser.add_argument(
+        "appid", "--appid",
+        help="Takes the form {user}/{project}/{app_id}."
+    )
+    parser.add_argument(
+        "cwl_path", "--cwl-path",
+        help="Path  or URL to the main CWL file to be uploaded."
+    )
+    parser.add_argument(
+        "--filter-non-sbg-tags",
+        action="store_true",
+        help="Filter out custom tags that are not 'sbg:'"
+    )
 
     args = parser.parse_args()
 
@@ -410,9 +425,8 @@ def main():
 
     api = lib.get_profile(profile)
 
-    cwl[
-        "sbg:revisionNotes"
-    ] = f"Uploaded using sbpack v{__version__}. \nSource: {get_git_info(cwl_path)}"
+    cwl["sbg:revisionNotes"] = f"Uploaded using sbpack v{__version__}.\n" \
+                               f"Source: {get_git_info(cwl_path)}"
     try:
         app = api.apps.get(appid)
         logger.debug(f"Creating revised app: {appid}")
@@ -424,6 +438,7 @@ def main():
 
 def localpack():
     _localpack(sys.argv[1:])
+
 
 def _localpack(args):
     logging.basicConfig()
@@ -452,7 +467,9 @@ def _localpack(args):
     cwl_path = args.cwl_path
 
     cwl = pack(
-        cwl_path, filter_non_sbg_tags=args.filter_non_sbg_tags, add_ids=args.add_ids
+        cwl_path,
+        filter_non_sbg_tags=args.filter_non_sbg_tags,
+        add_ids=args.add_ids
     )
     if args.json:
         json.dump(cwl, sys.stdout, indent=4)

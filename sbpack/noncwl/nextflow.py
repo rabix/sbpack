@@ -492,7 +492,7 @@ def main():
         help="SB platform profile as set in the SB API credentials file.",
     )
     parser.add_argument(
-        "--appid", required=True,
+        "--appid", required=False,
         help="Takes the form {user or division}/{project}/{app_id}.",
     )
     parser.add_argument(
@@ -574,6 +574,7 @@ def main():
     revision_note = args.revision_note or \
         f"Uploaded using sbpack v{__version__}"
     sample_sheet_schema = args.sample_sheet_schema or None
+    dump_sb_app = args.dump_sb_app or False
 
     sb_doc = None
     if args.sb_doc:
@@ -631,6 +632,19 @@ def main():
         if not sample_sheet_schema:
             sample_sheet_schema = get_sample_sheet_schema(args.workflow_path)
 
+        # if appid is not provided, dump the app
+        if not args.appid:
+            dump_sb_app = True
+
+    # Input validation
+    if not dump_sb_app:
+        # appid is required
+        if not args.appid:
+            raise Exception(
+                "The --appid argument is required if "
+                "--dump-sb-app is not used"
+            )
+
     nf_wrapper = SBNextflowWrapper(
         workflow_path=args.workflow_path,
         sb_doc=sb_doc
@@ -641,7 +655,6 @@ def main():
         nf_wrapper.generate_sb_app(
             sb_schema=sb_schema
         )
-
     else:
         # build schema
         nf_wrapper.nf_schema_build()
@@ -655,7 +668,11 @@ def main():
         )
 
     # Install app
-    if not args.dump_sb_app:
+    if dump_sb_app:
+        # Dump app to local file
+        out_format = EXTENSIONS.json if args.json else EXTENSIONS.yaml
+        nf_wrapper.dump_sb_wrapper(out_format=out_format)
+    else:
         api = lib.get_profile(args.profile)
 
         sb_package_id = None
@@ -678,7 +695,8 @@ def main():
 
         # Dump app to local file
         out_format = EXTENSIONS.json if args.json else EXTENSIONS.yaml
-        nf_wrapper.dump_sb_wrapper(out_format=out_format)
+        if not sb_schema:
+            nf_wrapper.dump_sb_wrapper(out_format=out_format)
         install_or_upgrade_app(api, args.appid, nf_wrapper.sb_wrapper.dump())
 
 
