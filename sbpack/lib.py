@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 from copy import deepcopy
 from urllib.parse import ParseResult, urlparse, urljoin
 from urllib.request import urlopen
@@ -73,7 +73,7 @@ def normalize_to_map(obj: Union[list, dict], key_field: str):
 
 
 def normalize_to_list(
-        obj: Union[list, dict], key_field: str, value_field: Union[str, None]):
+        obj: Union[list, dict], key_field: str, value_field: Optional[str]):
     if isinstance(obj, list):
         return deepcopy(obj)
     elif isinstance(obj, dict):
