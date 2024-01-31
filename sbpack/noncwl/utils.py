@@ -12,6 +12,7 @@ from sbpack.noncwl.constants import (
     PACKAGE_SIZE_LIMIT,
     EXTENSIONS,
     NF_TO_CWL_PORT_MAP,
+    SB_SCHEMA_DEFAULT_NAME
 )
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,20 @@ def nf_to_sb_input_mapper(port_id, port_data, category=None, required=False):
     """
     sb_input = dict()
     sb_input['id'] = port_id
-    sb_input['type'] = nf_schema_type_mapper(port_data)
+    # # Do not convert outdir
+    # if port_id == 'outdir':
+    #     port_data['format'] = ''
+
+    enum_symbols = port_data.get('enum', [])
+
+    if enum_symbols:
+        sb_input['type'] = enum_type(
+            id_=port_id,
+            symbols=enum_symbols,
+        )
+    else:
+        sb_input['type'] = nf_schema_type_mapper(port_data)
+
     sb_input['inputBinding'] = {
         'prefix': f'--{port_id}',
     }
@@ -58,7 +72,7 @@ def nf_to_sb_input_mapper(port_id, port_data, category=None, required=False):
     return sb_input
 
 
-def type_mapper(type_, format_):
+def type_mapper(type_, format_) -> list:
     if isinstance(type_, str):
         if type_ == 'string' and 'path' in format_:
             if format_ == 'file-path':
@@ -85,6 +99,17 @@ def type_mapper(type_, format_):
         for m in type_:
             temp_type_list.extend(type_mapper(m, format_))
         return temp_type_list
+
+
+def enum_type(id_: str, symbols: list) -> list:
+    # This can be generalized so that it encompasses create_profile_enum
+    return [
+        {
+            "type": "enum",
+            "name": id_,
+            "symbols": symbols
+        }
+    ]
 
 
 def create_profile_enum(profiles: list):
@@ -256,6 +281,7 @@ def get_tower_yml(path):
     return None
 
 
+# Nextflow
 def get_entrypoint(path):
     """
     Auto find main.nf or similar file is there is one in the path folder.
@@ -275,6 +301,63 @@ def get_entrypoint(path):
             'you want to use as the workflow entrypoint')
     elif len(possible_paths) == 1:
         return possible_paths.pop()
+    else:
+        return None
+
+
+# Nextflow
+def get_latest_sb_schema(path):
+    """
+    Auto find sb_nextflow_schema file.
+    """
+    possible_paths = []
+    for file in os.listdir(path):
+        result = re.findall(
+            fr"(.*{SB_SCHEMA_DEFAULT_NAME}\.?(\d+)?\.(ya?ml|json))", file
+        )
+        if result:
+            result = result.pop(0)
+            if not result[1]:
+                prep = 0, result[0]
+            else:
+                prep = int(result[1]), result[0]
+            possible_paths.append(prep)
+
+    if possible_paths:
+        latest = sorted(possible_paths).pop()[1]
+        sb_schema_path = os.path.join(path, latest)
+        print(f"Located latest sb_nextflow_schema at <{sb_schema_path}>")
+        return sb_schema_path
+    else:
+        return None
+
+
+def get_executor_version(string):
+    result = re.findall(
+        r"\[Nextflow]\([^(]+(%E2%89%A5|%E2%89%A4|=|>|<)(\d{2}\.\d+\.\d+)[^)]+\)",
+        string
+    )
+    if result:
+        sign, version = result.pop(0)
+        if sign == "%E2%89%A5":
+            sign = ">="
+        elif sign == "%E2%89%A4":
+            sign = "<="
+        elif not sign:
+            sign = "="
+
+        print(f"Identified nextflow executor version requirement {sign} {version}")
+        return sign, version
+    else:
+        return None, None
+
+
+def get_sample_sheet_schema(path):
+    ss_path = os.path.join(path, "samplesheet_schema.yaml")
+
+    if os.path.exists(ss_path):
+        print(f"Located latest sample sheet schema at <{ss_path}>")
+        return ss_path
     else:
         return None
 
@@ -346,6 +429,7 @@ def parse_config_file(file_path: str) -> dict:
     return profiles
 
 
+# Deprecated
 def update_schema_code_package(sb_schema, schema_ext, new_code_package):
     """
     Update the package in the sb_schema

@@ -1,7 +1,8 @@
-from typing import Union
+from typing import Union, Optional
 from copy import deepcopy
-import urllib.parse
-import urllib.request
+from urllib.parse import ParseResult, urlparse, urljoin
+from urllib.request import urlopen
+from urllib.error import HTTPError
 import pathlib
 import sys
 
@@ -71,7 +72,8 @@ def normalize_to_map(obj: Union[list, dict], key_field: str):
         raise RuntimeError("Expecting a dictionary or a list here")
 
 
-def normalize_to_list(obj: Union[list, dict], key_field: str, value_field: str):
+def normalize_to_list(
+        obj: Union[list, dict], key_field: str, value_field: Optional[str]):
     if isinstance(obj, list):
         return deepcopy(obj)
     elif isinstance(obj, dict):
@@ -89,8 +91,8 @@ def normalize_to_list(obj: Union[list, dict], key_field: str, value_field: str):
 
 
 # To deprecate
-def normalized_path(link: str, base_url: urllib.parse.ParseResult):
-    link_url = urllib.parse.urlparse(link)
+def normalized_path(link: str, base_url: ParseResult):
+    link_url = urlparse(link)
     if link_url.scheme in ["file://", ""]:
         new_url = base_url._replace(
             path=str((pathlib.Path(base_url.path) / pathlib.Path(link)).resolve())
@@ -101,7 +103,7 @@ def normalized_path(link: str, base_url: urllib.parse.ParseResult):
     return new_url
 
 
-def resolved_path(base_url: urllib.parse.ParseResult, link: str):
+def resolved_path(base_url: ParseResult, link: str):
     """
     Given a base_url ("this document") and a link ("string in this document")
     return a new url (urllib.parse.ParseResult) that allows us to retrieve the
@@ -110,12 +112,12 @@ def resolved_path(base_url: urllib.parse.ParseResult, link: str):
     2. Use the OS appropriate path resolution for local paths, and network
        apropriate resolution for network paths
     """
-    link_url = urllib.parse.urlparse(link)
+    link_url = urlparse(link)
     # The link will always Posix
 
     if link_url.scheme == "file://":
         # Absolute local path
-        new_url = urllib.parse.ParseResult(link_url)
+        new_url = ParseResult(str(link_url))
 
     elif link_url.scheme == "":
         # Relative path, can be local or remote
@@ -130,7 +132,7 @@ def resolved_path(base_url: urllib.parse.ParseResult, link: str):
 
         else:
             # Remote relative path
-            new_url = urllib.parse.urlparse(urllib.parse.urljoin(base_url.geturl(), link_url.path))
+            new_url = urlparse(urljoin(base_url.geturl(), link_url.path))
             # We need urljoin because we need to resolve relative links in a
             # platform independent manner
 
@@ -141,7 +143,7 @@ def resolved_path(base_url: urllib.parse.ParseResult, link: str):
     return new_url
 
 
-def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=False):
+def load_linked_file(base_url: ParseResult, link: str, is_import=False):
 
     new_url = resolved_path(base_url, link)
 
@@ -149,8 +151,8 @@ def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=Fa
         contents = pathlib.Path(new_url.path).open().read()
     else:
         try:
-            contents = urllib.request.urlopen(new_url.geturl()).read().decode("utf-8")
-        except urllib.error.HTTPError as e:
+            contents = urlopen(new_url.geturl()).read().decode("utf-8")
+        except HTTPError as e:
             e.msg += f"\n===\nCould not find linked file: {new_url.geturl()}\n===\n"
             raise SystemExit(e)
 
@@ -177,7 +179,7 @@ def load_linked_file(base_url: urllib.parse.ParseResult, link: str, is_import=Fa
     return _node, new_url
 
 
-def _is_github_symbolic_link(base_url: urllib.parse.ParseResult, contents: str):
+def _is_github_symbolic_link(base_url: ParseResult, contents: str):
     """Look for remote path with contents that is a single line with no new
     line with an extension."""
     if base_url.scheme in ["file://", ""]:

@@ -31,7 +31,6 @@ setup(
             'sbcopy = sbpack.noncwl.copy_app:main',
         ],
     },
-
     author='Seven Bridges',
     maintainer='Seven Bridges',
     maintainer_email='pavle.marinkovic@velsera.com',
