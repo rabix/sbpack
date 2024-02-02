@@ -391,15 +391,15 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "profile", "--profile",
+        "profile",
         help="SB platform profile as set in the SB API credentials file."
     )
     parser.add_argument(
-        "appid", "--appid",
+        "appid",
         help="Takes the form {user}/{project}/{app_id}."
     )
     parser.add_argument(
-        "cwl_path", "--cwl-path",
+        "cwl_path",
         help="Path  or URL to the main CWL file to be uploaded."
     )
     parser.add_argument(
