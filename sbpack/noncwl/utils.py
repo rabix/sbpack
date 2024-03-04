@@ -387,7 +387,7 @@ def find_config_section(file_path: str, section: str) -> str:
             if brackets < 0:
                 break
 
-            if re.findall(section + r'\s+\{', line):
+            if re.findall(section + r'(?:\s+|)\{', line):
                 section_text += "{\n"
                 found_section = True
 
