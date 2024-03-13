@@ -8,8 +8,8 @@ ${{
         return 0;
     }}
 
-    var input_source = [].concat(inputs.{input_source}).sort(compareFiles);
-    if (!input_source.length == 0){{
+    var input_source = [].concat({input_source}).sort(compareFiles);
+    if (input_source.length == 0){{
         // Return empty file if no input files are given.
         // Ensures that sample sheet is generated only if there are files to
         // either:
@@ -18,7 +18,7 @@ ${{
         return "";
     }};
 
-    var sample_sheet_input = inputs.{sample_sheet_input};
+    var sample_sheet_input = {sample_sheet_input};
 
     var sample_sheet = [];
 
@@ -29,12 +29,13 @@ ${{
         
         var split_char = "";
 
-        switch (format_) {{
-            case 'csv':
-                split_char = ",";
-            case 'tsv':
-                split_char = "\t";
-        }};
+        if (format_ == 'csv'){{
+            split_char = ',';
+        }}
+
+        if (format_ == 'tsv'){{
+            split_char = '\t';
+        }}
 
         for (var i=0; i < input_source.length; i++){{
             var file = input_source[i];
@@ -53,18 +54,20 @@ ${{
         sample_sheet = contents;
     }} else {{
         // If the samples are given, create the sample sheet from input data
-        var format_ = {format_};
+        var format_ = "{format_}";
         var header = {header};
         var row = {rows};
         var defaults = {defaults};
         var group_by = {group_by};
 
         var split_char = "";
-        switch (format_) {{
-            case 'csv':
-                split_char = ",";
-            case 'tsv':
-                split_char = "\t";
+
+        if (format_ == 'csv'){{
+            split_char = ',';
+        }}
+
+        if (format_ == 'tsv'){{
+            split_char = '\t';
         }}
 
         if (header){{
@@ -91,7 +94,7 @@ ${{
             }}
         }};
 
-        for (k in groups){{
+        for (var k in groups){{
             var row_data = [];
             var files = groups[k];
 
