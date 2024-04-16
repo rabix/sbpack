@@ -379,7 +379,7 @@ class SBNextflowWrapper:
                 "type": "Directory[]?",
                 "outputBinding": {
                     "glob": key,
-                    "loadListing": "deep_listing"
+                    "loadListing": "no_listing"
                 }
             }
         return converted_cwl_output
@@ -584,7 +584,9 @@ def main():
         with open(get_readme(args.workflow_path), 'r') as f:
             sb_doc = f.read()
 
-    test_sign, test_executor_version = get_executor_version(sb_doc or "")
+    manifest_string = get
+    test_sign, test_executor_version = get_executor_version(manifest_string, sb_doc or "")
+
     if test_sign and executor_version and "edge" not in executor_version:
         if test_sign == "=" and version.parse(executor_version) != \
                 version.parse(test_executor_version):

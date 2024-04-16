@@ -29,6 +29,7 @@ setup(
             'sbpack_nf = sbpack.noncwl.nextflow:main',
             'sbpack_wdl = sbpack.noncwl.wdl:main',
             'sbcopy = sbpack.noncwl.copy_app:main',
+            'sbmanifest = sbpack.noncwl.manifest:main',
         ],
     },
     author='Seven Bridges',

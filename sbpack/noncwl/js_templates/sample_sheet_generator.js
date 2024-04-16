@@ -8,7 +8,10 @@ ${{
         return 0;
     }}
 
-    var input_source = [].concat({input_source}).sort(compareFiles);
+    var input_source = [];
+    if ({input_source}){
+        input_source = [].concat({input_source}).sort(compareFiles);
+    };
     if (input_source.length == 0){{
         // Return empty file if no input files are given.
         // Ensures that sample sheet is generated only if there are files to
@@ -75,10 +78,10 @@ ${{
         }};
         var groups = {{}};
 
-        for (var i = 0; i < input_source.length; i ++){{
+        for (var i = 0; i < input_source.length; i++){{
             var file = input_source[i];
             var group_criteria = [];
-            for (var j = 0; j < group_by.length; j ++){{
+            for (var j = 0; j < group_by.length; j++){{
                 group_criteria.push(eval(group_by[j]));
             }}
             try {{
@@ -110,7 +113,7 @@ ${{
                 }}
             }});
 
-            for (var j = 0; j < row.length; j ++){{
+            for (var j = 0; j < row.length; j++){{
                 var d = "";
                 try {{
                     var d = eval(row[j]);

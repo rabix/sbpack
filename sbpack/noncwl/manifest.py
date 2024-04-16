@@ -1,37 +1,61 @@
 from typing import Union, Optional
 from sevenbridges.models.project import Project
 
+import logging
 import sbpack.lib as lib
 import argparse
 import os
 
 
-def validate_file(api, file_name, project, parent=None, is_folder=False):
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+
+def paths_to_check(file_name: Union[str, list]) -> list:
     if ":" in file_name:
-        return file_name
+        return list()
 
     if ";" in file_name:
-        for f_n in file_name.split(";"):
-            validate_file(api, f_n, project)
+        chk = []
+        for file in file_name.split(";"):
+            chk.extend(paths_to_check(file))
+        return chk
 
     file_name = file_name.strip('/')
-    paths_to_check = [os.path.basename(file_name)]
+    chk = [file_name]
     cur_path = file_name
     while os.path.dirname(cur_path):
         cur_path = os.path.dirname(cur_path)
-        paths_to_check.append(os.path.basename(cur_path))
+        chk.append(cur_path)
 
+    return chk
+
+
+def validate_files(
+        api,
+        file_names: set,
+        project: Union[str, Project]
+):
     checked = {}
-    keys = []
-    parent = None
-    for path in paths_to_check[::-1]:
-        keys.append(path)
-        if "/".join(keys) in checked:
-            parent = checked['/'.join(keys)]
+    for path in sorted(list(file_names)):
+        if path in checked:
+            continue
         else:
-            file = api.files.query(names=[path], parent=parent)
-            parent = path
-            checked["/".join(keys)] = file
+            basename = os.path.basename(path)
+            parent = None
+            if os.path.dirname(path):
+                parent = checked[os.path.dirname(path)]
+
+            file = api.files.query(
+                names=[basename],
+                project=project if not parent else None,
+                parent=parent)
+            if file:
+                checked[path] = file[0]
+            else:
+                raise FileExistsError(
+                    f"File <{path}> does not exist within "
+                    f"project <{project}>")
 
 
 def remap_cell(project_root, path):
@@ -39,10 +63,11 @@ def remap_cell(project_root, path):
     if ";" in path:
         return ";".join([remap_cell(project_root, f) for f in path.split(";")])
 
-    if ":" not in path:
+    if path and ":" not in path:
         while path.startswith('/'):
             path = path[1:]
-        return f"vs:///Projects/{project_root}/{path}"
+        if path:
+            return f"vs:///Projects/{project_root}/{path}"
     else:
         return path
 
@@ -63,7 +88,7 @@ def validate_sheet(
             f"Invalid file type '{ext}'. Expected a .tsv or .csv file."
         )
 
-    validated = dict()
+    to_validate = list()
     with open(path_to_file, 'r') as input_file:
         header = input_file.readline().strip('\n').split(split_char)
 
@@ -81,10 +106,9 @@ def validate_sheet(
             if line:
                 line = line.strip('\n').split(split_char)
                 for i in indices:
-                    if line[i] in validated:
-                        continue
+                    to_validate.extend(paths_to_check(line[i]))
 
-                    validate_file(api, line[i], project)
+    validate_files(api, set(to_validate), project)
 
 
 def remap(
@@ -178,22 +202,26 @@ def main():
     project = args.projectid
     api = lib.get_profile(args.profile)
 
-    project_root = api.files.get(
-        api.projects.get(project).root_folder
-    ).name
+    project = api.projects.get(project)
+    project_root = api.files.get(project.root_folder).name
 
+    logger.info('Remapping manifest files.')
     sheet = remap(
         project_root,
         args.sample_sheet,
         args.columns
     )
+    logger.info('Remapping complete.')
 
-    validate_sheet(
-        api,
-        project,
-        args.sample_sheet,
-        args.columns
-    )
+    if args.validate:
+        logger.info('Validating manifest.')
+        validate_sheet(
+            api,
+            project,
+            args.sample_sheet,
+            args.columns
+        )
+        logger.info('Validation complete.')
 
     if not args.output:
         name = os.path.basename(args.sample_sheet)
@@ -213,6 +241,7 @@ def main():
         save_path = args.output
 
     with open(save_path, 'w') as output:
+        logger.info(f'Saving remapped manifest file to <{save_path}>.')
         output.write(sheet)
 
     if args.upload:
@@ -227,6 +256,9 @@ def main():
             i += 1
             temp_name = f"_{i}_{name}"
 
+        logger.info(
+            f'Uploading remapped manifest file to project {project} '
+            f'under filename <{temp_name}>.')
         file = api.files.upload(
             save_path, project, file_name=temp_name
         ).result()
