@@ -9,7 +9,6 @@ import re
 from subprocess import check_call
 from sbpack.noncwl.utils import (
     zip_and_push_to_sb,
-    get_readme,
     install_or_upgrade_app,
     update_schema_code_package,
 )
@@ -18,6 +17,9 @@ from sbpack.noncwl.constants import (
     GENERIC_FILE_ARRAY_INPUT,
     WRAPPER_REQUIREMENTS,
     GENERIC_WDL_OUTPUT_DIRECTORY,
+)
+from wrabbit.parser.utils import (
+    get_readme
 )
 
 logger = logging.getLogger(__name__)
