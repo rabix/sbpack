@@ -33,12 +33,9 @@ logger.setLevel(logging.INFO)
 
 
 class SBNextflowWrapper(NextflowParser):
-    def __init__(self, workflow_path, sb_doc=None, label=None):
-        super().__init__(workflow_path, sb_doc, label)
+    def __init__(self, workflow_path, *args, **kwargs):
+        super().__init__(workflow_path, *args, **kwargs)
         self.nf_ps = PipelineSchema()
-
-        if not self.nf_schema_path:
-            self.nf_schema_build()
 
     def nf_schema_build(self):
         """
@@ -88,7 +85,7 @@ def main():
     )
     parser.add_argument(
         "--sb-package-id", required=False,
-        help="Id of an already uploaded package",
+        help="Id of an already uploaded package.",
     )
     parser.add_argument(
         "--sb-doc", required=False,
@@ -99,10 +96,10 @@ def main():
         "--dump-sb-app", action="store_true", required=False,
         help="Dump created sb app to file if true and exit",
     )
-    parser.add_argument(
-        "--no-package", action="store_true", required=False,
-        help="Only provide a sb app schema and a git URL for entrypoint",
-    )
+    # parser.add_argument(
+    #     "--no-package", action="store_true", required=False,
+    #     help="Only provide an sb app schema and a git URL for entrypoint",
+    # )
     parser.add_argument(
         "--executor-version", required=False,
         help="Version of the Nextflow executor to be used with the app.",
@@ -133,11 +130,12 @@ def main():
         default=None, type=str,
         help="Name of the app to be shown on the platform.",
     )
-    # parser.add_argument(
-    #     "--exclude", required=False,
-    #     help="Glob patterns you want to exclude from the code package. "
-    #          "'.git*' is excluded by default."
-    # )
+    parser.add_argument(
+        "--exclude", required=False,
+        default=None, type=str, nargs="+",
+        help="Glob patterns you want to exclude from the code package. "
+             "'.git*' is excluded by default."
+    )
     parser.add_argument(
         "--sample-sheet-schema", required=False,
         default=None, type=str,
@@ -165,12 +163,34 @@ def main():
     sample_sheet_schema = args.sample_sheet_schema or None
     label = args.app_name or None
     dump_sb_app = args.dump_sb_app or False
+    sb_package_id = args.sb_package_id or None
+
+    # Input validation
+    if not dump_sb_app and not args.appid and not args.auto:
+        raise Exception(
+            "The --appid argument is required if "
+            "--dump-sb-app and/or --auto are not used"
+        )
 
     if sb_schema and execution_mode:
-        logger.warning("Using --sb-schema option overwrites --execution-mode")
+        logger.warning(
+            "Using --sb-schema option overwrites --execution-mode"
+        )
 
     if sb_schema and label:
-        logger.warning("Using --sb-schema option overwrites --app-name")
+        logger.warning(
+            "Using --sb-schema option overwrites --app-name"
+        )
+
+    if sb_schema and executor_version:
+        logger.warning(
+            "Using --sb-schema option overwrites --executor-version"
+        )
+
+    if sb_schema and entrypoint:
+        logger.warning(
+            "Using --sb-schema option overwrites --entrypoint"
+        )
 
     sb_doc = None
     if args.sb_doc:
@@ -184,32 +204,36 @@ def main():
         # This is where the magic happens
         if not sb_schema:
             sb_schema = get_latest_sb_schema(args.workflow_path)
+            if sb_schema:
+                logger.info(f'Using sb schema <{sb_schema}>')
 
         # Set execution mode to multi-instance
         if not execution_mode:
             execution_mode = ExecMode.multi
+            logger.info(f'Using execution mode <{execution_mode}>')
 
         # locate sample sheet
         if not sample_sheet_schema:
             sample_sheet_schema = get_sample_sheet_schema(args.workflow_path)
+            if sample_sheet_schema:
+                logger.info(
+                    f'Using sample sheet schema <{sample_sheet_schema}>'
+                )
 
         # if appid is not provided, dump the app
         if not args.appid:
             dump_sb_app = True
-
-    # Input validation
-    if not dump_sb_app:
-        # appid is required
-        if not args.appid:
-            raise Exception(
-                "The --appid argument is required if "
-                "--dump-sb-app is not used"
+            logger.info(
+                f'Appid not provided. App is not going to be uploaded.'
             )
 
     nf_wrapper = SBNextflowWrapper(
         workflow_path=args.workflow_path,
         sb_doc=sb_doc,
-        label=label
+        label=label,
+        entrypoint=entrypoint,
+        executor_version=executor_version,
+        sb_package_id=sb_package_id,
     )
 
     if sb_schema:
@@ -223,8 +247,6 @@ def main():
 
         # Create app
         nf_wrapper.generate_sb_app(
-            sb_entrypoint=entrypoint,
-            executor_version=executor_version,
             execution_mode=execution_mode,
             sample_sheet_schema=sample_sheet_schema,
         )
@@ -234,19 +256,21 @@ def main():
         # Dump app to local file
         out_format = EXTENSIONS.json if args.json else EXTENSIONS.yaml
         nf_wrapper.dump_sb_wrapper(out_format=out_format)
+
     else:
+        # App should be installed on the platform
         api = lib.get_profile(args.profile)
 
-        sb_package_id = None
-        if args.sb_package_id:
-            sb_package_id = args.sb_package_id
-        elif not args.no_package:
+        # 1. if the code package is not provided on input,
+        # create and upload it
+        if not sb_package_id:
             project_id = '/'.join(args.appid.split('/')[:2])
             sb_package_id = zip_and_push_to_sb(
                 api=api,
                 workflow_path=args.workflow_path,
                 project_id=project_id,
-                folder_name='nextflow_workflows'
+                folder_name='nextflow_workflows',
+                exclude_patterns=args.exclude,
             )
 
         nf_wrapper.sb_wrapper.set_app_content(

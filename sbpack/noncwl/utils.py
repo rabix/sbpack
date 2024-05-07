@@ -6,6 +6,8 @@ import json
 import yaml
 import re
 
+from typing import Optional
+import fnmatch
 from sbpack.pack import pack
 from sevenbridges.errors import NotFound
 from sbpack.noncwl.constants import (
@@ -19,12 +21,15 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-def zip_and_push_to_sb(api, workflow_path, project_id, folder_name):
+def zip_and_push_to_sb(
+        api, workflow_path, project_id, folder_name,
+        exclude_patterns: Optional[list] = None
+):
     """
     Create .zip package file. Upload .zip file to the designated folder
     for packages on SevenBridges Platform. Delete local .zip file.
     """
-    zip_path = zip_directory(workflow_path)
+    zip_path = zip_directory(workflow_path, exclude_patterns)
     return push_zip(api, zip_path, project_id, folder_name)
 
 
@@ -34,35 +39,78 @@ def update_timestamp(file_name):
     ) + f'_{time.strftime("%Y%m%d-%H%M%S")}'
 
 
-def zip_directory(workflow_path):
+def zip_directory(workflow_path, exclude_patterns: Optional[list] = None):
     """
     This will create a temporary directory that will store all files from the
     original directory, except for the .git hidden directory. This dir
     sometimes collects a large amount of files that will not be used by the
     tool, and can increase the size of the archive up to 10 times.
     """
+    if not exclude_patterns:
+        exclude_patterns = []
 
     intermediary_dir = update_timestamp(os.path.abspath(workflow_path))
     os.mkdir(intermediary_dir)
+    default_exclude_patterns = [
+        "*.git",
+        "*.git*",
+        ".git",
+        ".git*",
+        # ".github",
+        # ".gitignore",
+        # ".gitpod.yml",
+        "work",
+        ".nextflow.log",
+        ".DS_Store",
+        ".devcontainer",
+        ".editorconfig",
+        ".gitattributes",
+        ".nextflow",
+        # ".nf-core.yml",
+        ".pre-commit-config.yaml",
+        ".prettierignore",
+        ".prettierrc.yml",
+        ".idea",
+        ".pytest_cache",
+        "*.egg-info",
+    ]
 
     for root, dirs, files in os.walk(workflow_path):
-        pattern = re.compile(r'(?:^|.*/)\.git(?:$|/.*)')
-        if re.match(pattern, root):
-            continue
-
-        dirs = [d for d in dirs if not re.match(pattern, d)]
         for d in dirs:
             source_file = os.path.join(root, d)
             directory_path = os.path.join(intermediary_dir, os.path.relpath(
                 source_file, workflow_path))
-            if not os.path.exists(directory_path):
-                os.mkdir(directory_path)
+
+            if any([
+                fnmatch.fnmatch(
+                    directory_path, os.path.join(intermediary_dir, pattern)
+                ) for pattern in exclude_patterns + default_exclude_patterns
+            ]):
+                continue
+
+            try:
+                if not os.path.exists(directory_path):
+                    os.mkdir(directory_path)
+            except FileNotFoundError:
+                """Skip folders that cannot be created"""
+                pass
 
         for file in files:
             source_file = os.path.join(root, file)
             dest_file = os.path.join(intermediary_dir, os.path.relpath(
                 source_file, workflow_path))
-            shutil.copy2(source_file, dest_file)
+
+            if any([
+                fnmatch.fnmatch(
+                    dest_file, os.path.join(intermediary_dir, pattern)
+                ) for pattern in exclude_patterns + default_exclude_patterns
+            ]):
+                continue
+
+            try:
+                shutil.copy2(source_file, dest_file)
+            except FileNotFoundError:
+                pass
 
     shutil.make_archive(
         intermediary_dir,
