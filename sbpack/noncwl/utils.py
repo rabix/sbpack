@@ -12,6 +12,7 @@ from sbpack.pack import pack
 from sevenbridges.errors import NotFound
 from sbpack.noncwl.constants import (
     PACKAGE_SIZE_LIMIT,
+    DEFAULT_EXCLUDE_PATTERNS,
 )
 from wrabbit.parser.constants import (
     EXTENSIONS,
@@ -51,29 +52,6 @@ def zip_directory(workflow_path, exclude_patterns: Optional[list] = None):
 
     intermediary_dir = update_timestamp(os.path.abspath(workflow_path))
     os.mkdir(intermediary_dir)
-    default_exclude_patterns = [
-        "*.git",
-        "*.git*",
-        ".git",
-        ".git*",
-        # ".github",
-        # ".gitignore",
-        # ".gitpod.yml",
-        "work",
-        ".nextflow.log",
-        ".DS_Store",
-        ".devcontainer",
-        ".editorconfig",
-        ".gitattributes",
-        ".nextflow",
-        # ".nf-core.yml",
-        ".pre-commit-config.yaml",
-        ".prettierignore",
-        ".prettierrc.yml",
-        ".idea",
-        ".pytest_cache",
-        "*.egg-info",
-    ]
 
     for root, dirs, files in os.walk(workflow_path):
         for d in dirs:
@@ -84,7 +62,7 @@ def zip_directory(workflow_path, exclude_patterns: Optional[list] = None):
             if any([
                 fnmatch.fnmatch(
                     directory_path, os.path.join(intermediary_dir, pattern)
-                ) for pattern in exclude_patterns + default_exclude_patterns
+                ) for pattern in exclude_patterns + DEFAULT_EXCLUDE_PATTERNS
             ]):
                 continue
 
@@ -103,7 +81,7 @@ def zip_directory(workflow_path, exclude_patterns: Optional[list] = None):
             if any([
                 fnmatch.fnmatch(
                     dest_file, os.path.join(intermediary_dir, pattern)
-                ) for pattern in exclude_patterns + default_exclude_patterns
+                ) for pattern in exclude_patterns + DEFAULT_EXCLUDE_PATTERNS
             ]):
                 continue
 

@@ -10,6 +10,10 @@ from wrabbit.parser.nextflow import NextflowParser
 from nf_core.schema import PipelineSchema
 from sbpack.version import __version__
 
+from sbpack.noncwl.constants import (
+    DEFAULT_EXCLUDE_PATTERNS,
+)
+
 from sbpack.noncwl.utils import (
     zip_and_push_to_sb,
     install_or_upgrade_app,
@@ -133,8 +137,9 @@ def main():
     parser.add_argument(
         "--exclude", required=False,
         default=None, type=str, nargs="+",
-        help="Glob patterns you want to exclude from the code package. "
-             "'.git*' is excluded by default."
+        help=f"Glob patterns you want to exclude from the code package. "
+             f"By default the following patterns are excluded: "
+             f"{DEFAULT_EXCLUDE_PATTERNS}"
     )
     parser.add_argument(
         "--sample-sheet-schema", required=False,

@@ -51,18 +51,21 @@ $ sbpack_nf -h
 
 usage: sbpack_nf [-h]
                  [--profile PROFILE]
-                 --appid APPID 
+                 [--appid APPID]
                  --workflow-path WORKFLOW_PATH
                  [--entrypoint ENTRYPOINT]
                  [--sb-package-id SB_PACKAGE_ID]
                  [--sb-doc SB_DOC]
                  [--dump-sb-app]
-                 [--no-package]
                  [--executor-version EXECUTOR_VERSION]
                  [--execution-mode {single-instance,multi-instance}]
                  [--json]
                  [--sb-schema SB_SCHEMA]
                  [--revision-note REVISION_NOTE]
+                 [--app-name APP_NAME]
+                 [--exclude EXCLUDE [EXCLUDE ...]]
+                 [--sample-sheet-schema SAMPLE_SHEET_SCHEMA]
+                 [--auto]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -79,17 +82,16 @@ optional arguments:
                         than one '*.nf' script is detected, an error is
                         raised.
   --sb-package-id SB_PACKAGE_ID
-                        Id of an already uploaded package
+                        Id of an already uploaded package.
   --sb-doc SB_DOC       Path to a doc file for sb app. If not provided,
                         README.md will be used if available
   --dump-sb-app         Dump created sb app to file if true and exit
-  --no-package          Only provide a sb app schema and a git URL for
-                        entrypoint
   --executor-version EXECUTOR_VERSION
                         Version of the Nextflow executor to be used with the
                         app.
   --execution-mode {single-instance,multi-instance}
-                        Execution mode for your application.
+                        Execution mode for your application. Can be multi-
+                        instance or single-instance
   --json                Dump sb app schema in JSON format (YAML by default)
   --sb-schema SB_SCHEMA
                         Do not create new schema, use this schema file. It is
@@ -97,6 +99,24 @@ optional arguments:
   --revision-note REVISION_NOTE
                         Revision note to be placed in the CWL schema if the
                         app is uploaded to the sbg platform.
+  --app-name APP_NAME   Name of the app to be shown on the platform.
+  --exclude EXCLUDE [EXCLUDE ...]
+                        Glob patterns you want to exclude from the code
+                        package. By default the following patterns are
+                        excluded: ['*.git', '*.git*', '.git', '.git*', 'work',
+                        '.nextflow.log', '.DS_Store', '.devcontainer',
+                        '.editorconfig', '.gitattributes', '.nextflow', '.pre-
+                        commit-config.yaml', '.prettierignore',
+                        '.prettierrc.yml', '.idea', '.pytest_cache', '*.egg-
+                        info']
+  --sample-sheet-schema SAMPLE_SHEET_SCHEMA
+                        Path to the sample sheet schema yaml. The sample sheet
+                        schema should contain the following keys:
+                        'sample_sheet_input', 'sample_sheet_name', 'header',
+                        'rows', 'defaults', 'group_by', 'format_'
+  --auto                Automatically detect all possible inputs directly from
+                        the --workflow-path location
+
 ```
 ### Example
 

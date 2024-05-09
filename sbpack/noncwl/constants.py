@@ -65,3 +65,28 @@ WRAPPER_REQUIREMENTS = [
     INLINE_JS_REQUIREMENT,
     AUX_FILES_REQUIREMENT
 ]
+
+# Nextflow
+DEFAULT_EXCLUDE_PATTERNS = [
+    "*.git",
+    "*.git*",
+    ".git",
+    ".git*",
+    # ".github",
+    # ".gitignore",
+    # ".gitpod.yml",
+    "work",
+    ".nextflow.log",
+    ".DS_Store",
+    ".devcontainer",
+    ".editorconfig",
+    ".gitattributes",
+    ".nextflow",
+    # ".nf-core.yml",
+    ".pre-commit-config.yaml",
+    ".prettierignore",
+    ".prettierrc.yml",
+    ".idea",
+    ".pytest_cache",
+    "*.egg-info",
+]
