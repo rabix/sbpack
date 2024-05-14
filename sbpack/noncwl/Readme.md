@@ -168,3 +168,59 @@ Copying an app from one division to another.
 ```
 sbcopy --profile source_division target_division --appid source-division-name/project-name/app-name --projectid target-division-name/destination-project-name
 ```
+
+# sbmanifest
+
+Developed to help remap file paths contained within a manifest file to platform
+file locations. This is useful when utilizing sample sheets to run nextflow
+pipelines on SB powered platforms.
+
+### Usage
+
+```
+usage: sbmanifest [-h] [--profile PROFILE] --projectid PROJECTID
+                  --sample-sheet SAMPLE_SHEET --columns string [string ...]
+                  [--output OUTPUT] [--upload] [--tags string [string ...]]
+                  [--validate]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --profile PROFILE     SB platform profile as set in the SB API credentials
+                        file.
+  --projectid PROJECTID
+                        Takes the form {user or division}/{project}.
+  --sample-sheet SAMPLE_SHEET
+                        Path to the sample sheet.
+  --columns string [string ...]
+                        Specify columns that contain paths to files on the
+                        platformas a list of strings separated by spaces.
+  --output OUTPUT, -o OUTPUT
+                        Name of the output file.
+  --upload, -u          Upload the file to the project after making it.
+  --tags string [string ...]
+                        Specify tags that you want the sample sheet to have on
+                        the platform, after it is uploaded.
+  --validate            Validate if each file exists on target project
+                        location.
+```
+
+### Examples
+
+Remap a sample sheet and upload it to the platform with the tag "SampleSheet"
+```
+sbmanifest --projectid user/project_id --sample-sheet /path/to/rnaseq_samplesheet.csv --columns fastq_1 fastq_2 -o rnaseq_samplesheet.csv -u --tags SampleSheet
+```
+Given the contents of this sample sheet is:
+
+| sample  | fastq_1                          | fastq_2                          | strandedness |
+|:--------|:---------------------------------|:---------------------------------|:-------------|
+| SAMPLE1 | RNAseq_inputs/SAMPLE1_1.fastq.gz | RNAseq_inputs/SAMPLE1_2.fastq.gz | reverse      |
+| SAMPLE2 | RNAseq_inputs/SAMPLE2_1.fastq.gz | RNAseq_inputs/SAMPLE2_2.fastq.gz | reverse      |
+
+
+Remapped file will be:
+
+| sample  | fastq_1                                                           | fastq_2                                                           | strandedness |
+|:--------|:------------------------------------------------------------------|:------------------------------------------------------------------|:-------------|
+| SAMPLE1 | vs:///Projects/project-root-uuid/RNAseq_inputs/SAMPLE1_1.fastq.gz | vs:///Projects/project-root-uuid/RNAseq_inputs/SAMPLE1_2.fastq.gz | reverse      |
+| SAMPLE2 | vs:///Projects/project-root-uuid/RNAseq_inputs/SAMPLE2_1.fastq.gz | vs:///Projects/project-root-uuid/RNAseq_inputs/SAMPLE2_2.fastq.gz | reverse      |
