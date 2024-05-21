@@ -55,6 +55,7 @@ class SBNextflowWrapper(NextflowParser):
         logging.getLogger("nf_core.schema").setLevel("CRITICAL")
 
         self.nf_ps.schema_filename = nf_schema_path
+        # if not os.path.exists(nf_schema_path):
         self.nf_ps.build_schema(
             pipeline_dir=self.workflow_path,
             no_prompts=True,
@@ -248,6 +249,7 @@ def main():
             nf_wrapper.sb_wrapper.load(schema)
     else:
         # build schema
+        # Do this only if the nextflow_schema.json is missing
         nf_wrapper.nf_schema_build()
 
         # Create app
