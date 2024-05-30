@@ -250,7 +250,8 @@ def main():
     else:
         # build schema
         # Do this only if the nextflow_schema.json is missing
-        nf_wrapper.nf_schema_build()
+        if not nf_wrapper.nf_schema_path:
+            nf_wrapper.nf_schema_build()
 
         # Create app
         nf_wrapper.generate_sb_app(
