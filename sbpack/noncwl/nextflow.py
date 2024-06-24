@@ -252,6 +252,8 @@ def main():
         # Do this only if the nextflow_schema.json is missing
         if not nf_wrapper.nf_schema_path:
             nf_wrapper.nf_schema_build()
+            # update the nextflow_schema.json location
+            nf_wrapper.init_config_files()
 
         # Create app
         nf_wrapper.generate_sb_app(

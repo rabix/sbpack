@@ -134,6 +134,8 @@ def validate_sheet(
             continue
         else:
             basename = os.path.basename(path)
+            if not basename:
+                continue
             parent = None
             if os.path.dirname(path):
                 parent = checked[os.path.dirname(path)]
@@ -239,7 +241,7 @@ def main():
         help="Name of the output file.",
     )
     parser.add_argument(
-        "--upload", '-u', action='store_true', required=False,
+        "--upload", action='store_true', required=False,
         help="Upload the file to the project after making it.",
     )
     parser.add_argument(
