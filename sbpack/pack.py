@@ -246,6 +246,15 @@ def resolve_steps(
                     cwl["cwlVersion"] = v["run"]["cwlVersion"]
                     # not really enough, but hope for the best
 
+                if 'sbg:appVersion' not in v["run"]:
+                    v["run"]['sbg:appVersion'] = [cwl.get(
+                        "cwlVersion", cwl_version)]
+                else:
+                    version_ = cwl.get(
+                        "cwlVersion", cwl_version)
+                    if version_ not in v["run"]['sbg:appVersion']:
+                        v["run"]['sbg:appVersion'].append(version_)
+
     return cwl
 
 
