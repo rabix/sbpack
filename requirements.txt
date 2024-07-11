@@ -1,6 +1,6 @@
 ruamel.yaml >= 0.16
 sevenbridges-python >= 2.0
 nf-core==2.1
-wrabbit==0.2.0
+wrabbit==0.2.1
 cwlformat
 packaging
