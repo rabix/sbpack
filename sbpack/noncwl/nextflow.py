@@ -46,6 +46,9 @@ class SBNextflowWrapper(NextflowParser):
         Build nextflow schema using nf_core schema build feature and save to
         a file
         """
+        if self.nf_schema_path:
+            return
+
         nf_schema_path = os.path.join(
             self.workflow_path,
             NF_SCHEMA_DEFAULT_NAME,
@@ -63,6 +66,8 @@ class SBNextflowWrapper(NextflowParser):
             url='',
         )
         self.nf_schema_path = nf_schema_path
+
+        self.init_config_files()
 
 
 def main():
@@ -248,11 +253,6 @@ def main():
             schema = yaml.safe_load(s)
             nf_wrapper.sb_wrapper.load(schema)
     else:
-        # build schema
-        # Do this only if the nextflow_schema.json is missing
-        if not nf_wrapper.nf_schema_path:
-            nf_wrapper.nf_schema_build()
-
         # Create app
         nf_wrapper.generate_sb_app(
             execution_mode=execution_mode,
