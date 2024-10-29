@@ -1,4 +1,5 @@
 from sevenbridges.models.project import Project
+from sevenbridges import Api
 
 import logging
 import sbpack.lib as lib
@@ -40,6 +41,46 @@ def paths_to_check(file_name: str) -> list:
             rtrn.append(cur_path)
 
     return rtrn
+
+
+def get_path_from_id(api: Api, file: str) -> str:
+    """
+    Extracts the full path of a file from ID
+    :param api: Initialized SevenBridges API
+    :param file: id of a file
+    :return: Path to the File
+    """
+    file = api.files.get(file)
+    temp = file
+    full_path = [file.name]
+
+    project_root = api.projects.get(file.project)
+    project_root_name = api.files.get(project_root).name
+
+    while temp.parent != project_root:
+        temp = api.files.get(temp.parent)
+        full_path.append(temp.name)
+
+    full_path.append(project_root_name)
+    return "vs:///Projects/" + "/".join(full_path[::-1])
+
+
+def get_path_from_name(api: Api, file_name: str, project: Project) -> str:
+    """
+    Extract the full path of a file from File Name
+    :param api: Initialized SevenBridges API
+    :param file_name: Name of the file
+    :param project: SevenBridges Project
+    :return:
+    """
+
+    file = api.files.query(project=project, names=[file_name])
+    if file:
+        return get_path_from_id(api, file[0].id)
+    else:
+        raise FileNotFoundError(
+            f"Unable to find file with name {file_name} in {project}"
+        )
 
 
 def remap_cell(project_root: str, path: str) -> str:

@@ -5,6 +5,7 @@ import logging
 import json
 import yaml
 import re
+import subprocess
 
 from typing import Optional
 import fnmatch
@@ -97,10 +98,14 @@ def zip_directory(workflow_path, exclude_patterns: Optional[list] = None):
         base_dir='./'
     )
 
-    shutil.rmtree(intermediary_dir)
-    print(f'Temporary local folder {intermediary_dir} deleted.')
+    remove_local_file(intermediary_dir)
 
     return intermediary_dir + '.zip'
+
+
+def remove_local_file(directory):
+    shutil.rmtree(directory)
+    print(f'Temporary local folder {directory} deleted.')
 
 
 def push_zip(api, zip_path, project_id, folder_name=None):
@@ -184,3 +189,48 @@ def install_or_upgrade_app(api, app_id, sb_app_raw):
             raw=sb_app_raw
         )
         print(f"App created successfully!")
+
+
+def get_git_repo(url, branch=None, max_retries=3, delay=2):
+    """
+    Clones a Git repository to a specified directory,
+    optionally checking out a specific branch.
+
+    :param url: The URL of the Git repository to clone.
+    :param branch: The specific branch or tag to check out after cloning.
+    :param max_retries: Maximum number of retry attempts for cloning.
+    :param delay: Delay (in seconds) between retry attempts.
+    :return: Temporary directory where git is cloned.
+    """
+    # TBD change this to git.Repo with gitpython
+
+    clone_dir = update_timestamp(os.path.basename(url))
+    attempts = 0
+
+    while attempts < max_retries:
+        try:
+            # Clone the repository
+            if branch:
+                subprocess.run(
+                    ['git', 'clone', '--branch', branch, url, clone_dir],
+                    check=True
+                )
+                print(f"Successfully cloned {url}:{branch} into {clone_dir}")
+            else:
+                subprocess.run(
+                    ['git', 'clone', url, clone_dir],
+                    check=True
+                )
+                print(f"Successfully cloned {url} into {clone_dir}")
+            return clone_dir  # Return upon successful cloning
+
+        except subprocess.CalledProcessError as e:
+            attempts += 1
+            print(f"Error during cloning: {e}. "
+                  f"Attempt {attempts} of {max_retries}.")
+            if attempts < max_retries:
+                print(f"Retrying in {delay} seconds...")
+                time.sleep(delay)
+
+    raise RuntimeError(f"Failed to clone repository {url} after "
+                       f"{max_retries} attempts.")
