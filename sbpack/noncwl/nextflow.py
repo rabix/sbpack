@@ -17,6 +17,8 @@ from sbpack.noncwl.constants import (
 from sbpack.noncwl.utils import (
     zip_and_push_to_sb,
     install_or_upgrade_app,
+    remove_local_file,
+    get_git_repo,
 )
 
 from wrabbit.parser.utils import (
@@ -82,16 +84,24 @@ def main():
         help="Takes the form {user or division}/{project}/{app_id}.",
     )
     parser.add_argument(
-        "--workflow-path", required=True,
-        help="Path to the main workflow directory",
+        "--workflow-path", required=False,
+        help="Path to the main workflow directory.",
+    )
+    parser.add_argument(
+        "--git-url", required=False,
+        help="URL to the git repository.",
+    )
+    parser.add_argument(
+        "--branch", required=False,
+        help="Used with --git-url. If git url is provided, branch to clone.",
     )
     parser.add_argument(
         "--entrypoint", required=False,
         help="Relative path to the workflow from the main workflow directory. "
              "If not provided, 'main.nf' will be used if available. "
              "If not available, but a single '*.nf' is located in the "
-             "workflow-path will be used. If more than one '*.nf' script is "
-             "detected, an error is raised.",
+             "workflow-path (or git-url) will be used. If more than one '*.nf'"
+             " script is detected, an error is raised.",
     )
     parser.add_argument(
         "--sb-package-id", required=False,
@@ -158,7 +168,7 @@ def main():
     parser.add_argument(
         "--auto", action="store_true", required=False,
         help="Automatically detect all possible inputs directly from the "
-             "--workflow-path location",
+             "--workflow-path or --git-url location",
     )
 
     args = parser.parse_args()
@@ -175,8 +185,18 @@ def main():
     label = args.app_name or None
     dump_sb_app = args.dump_sb_app or False
     sb_package_id = args.sb_package_id or None
+    workflow_path = args.workflow_path or None
+    git_url = args.git_url or None
+    branch = args.branch or None
+    cleanup_workflow_path = False  # changes to True if temp git dir is created
 
     # Input validation
+    if (not workflow_path and not git_url) or \
+            (workflow_path and git_url):
+        raise Exception(
+            "Either --workflow_path OR --git_url must be provided."
+        )
+
     if not dump_sb_app and not args.appid and not args.auto:
         raise Exception(
             "The --appid argument is required if "
@@ -203,18 +223,22 @@ def main():
             "Using --sb-schema option overwrites --entrypoint"
         )
 
+    if git_url:
+        cleanup_workflow_path = True
+        workflow_path = get_git_repo(git_url, branch)
+
     sb_doc = None
     if args.sb_doc:
         with open(args.sb_doc, 'r') as f:
             sb_doc = f.read()
-    elif get_readme(args.workflow_path):
-        with open(get_readme(args.workflow_path), 'r') as f:
+    elif get_readme(workflow_path):
+        with open(get_readme(workflow_path), 'r') as f:
             sb_doc = f.read()
 
     if args.auto:
         # This is where the magic happens
         if not sb_schema:
-            sb_schema = get_latest_sb_schema(args.workflow_path)
+            sb_schema = get_latest_sb_schema(workflow_path)
             if sb_schema:
                 logger.info(f'Using sb schema <{sb_schema}>')
 
@@ -225,7 +249,7 @@ def main():
 
         # locate sample sheet
         if not sample_sheet_schema:
-            sample_sheet_schema = get_sample_sheet_schema(args.workflow_path)
+            sample_sheet_schema = get_sample_sheet_schema(workflow_path)
             if sample_sheet_schema:
                 logger.info(
                     f'Using sample sheet schema <{sample_sheet_schema}>'
@@ -239,7 +263,7 @@ def main():
             )
 
     nf_wrapper = SBNextflowWrapper(
-        workflow_path=args.workflow_path,
+        workflow_path=workflow_path,
         sb_doc=sb_doc,
         label=label,
         entrypoint=entrypoint,
@@ -275,7 +299,7 @@ def main():
             project_id = '/'.join(args.appid.split('/')[:2])
             sb_package_id = zip_and_push_to_sb(
                 api=api,
-                workflow_path=args.workflow_path,
+                workflow_path=workflow_path,
                 project_id=project_id,
                 folder_name='nextflow_workflows',
                 exclude_patterns=args.exclude,
@@ -292,6 +316,9 @@ def main():
         if not sb_schema:
             nf_wrapper.dump_sb_wrapper(out_format=out_format)
         install_or_upgrade_app(api, args.appid, nf_wrapper.sb_wrapper.dump())
+
+    if cleanup_workflow_path:
+        remove_local_file(workflow_path)
 
 
 if __name__ == "__main__":
