@@ -5,8 +5,6 @@ import os
 
 import sbpack.lib as lib
 
-from wrabbit.parser.nextflow import NextflowParser
-
 from nf_core.schema import PipelineSchema
 from sbpack.version import __version__
 
@@ -22,7 +20,6 @@ from sbpack.noncwl.utils import (
 )
 
 from wrabbit.parser.utils import (
-    get_readme,
     get_latest_sb_schema,
     get_sample_sheet_schema,
 )
@@ -32,6 +29,10 @@ from wrabbit.parser.constants import (
     EXTENSIONS,
     NF_SCHEMA_DEFAULT_NAME,
     SB_SCHEMA_DEFAULT_NAME,
+)
+
+from wrabbit.parser.nextflow import (
+    NextflowParser
 )
 
 logger = logging.getLogger(__name__)
@@ -51,8 +52,11 @@ class SBNextflowWrapper(NextflowParser):
         if self.nf_schema_path:
             return
 
+        base_dir = os.path.join(
+            self.workflow_path, os.path.dirname(self.entrypoint)
+        )
         nf_schema_path = os.path.join(
-            self.workflow_path,
+            base_dir,
             NF_SCHEMA_DEFAULT_NAME,
         )
 
@@ -62,7 +66,7 @@ class SBNextflowWrapper(NextflowParser):
         self.nf_ps.schema_filename = nf_schema_path
         # if not os.path.exists(nf_schema_path):
         self.nf_ps.build_schema(
-            pipeline_dir=self.workflow_path,
+            pipeline_dir=base_dir,
             no_prompts=True,
             web_only=False,
             url='',
@@ -126,7 +130,7 @@ def main():
     )
     parser.add_argument(
         "--execution-mode", type=ExecMode, choices=list(ExecMode),
-        required=False, default=None,
+        required=False, default=ExecMode.multi,
         help="Execution mode for your application. Can be multi-instance or "
              "single-instance",
     )
@@ -160,7 +164,9 @@ def main():
     parser.add_argument(
         "--sample-sheet-schema", required=False,
         default=None, type=str,
-        help="Path to the sample sheet schema yaml. The sample sheet schema "
+        help="This options is deprecated. Please use sbmanifest to generate "
+             "valid sample sheets for the SevenBridges powered platforms.\n"
+             "Path to the sample sheet schema yaml. The sample sheet schema "
              "should contain the following keys: 'sample_sheet_input', "
              "'sample_sheet_name', 'header', 'rows', 'defaults', 'group_by', "
              "'format_'"
@@ -183,6 +189,7 @@ def main():
         f"Uploaded using sbpack v{__version__}"
     sample_sheet_schema = args.sample_sheet_schema or None
     label = args.app_name or None
+    readme_path = args.sb_doc or None
     dump_sb_app = args.dump_sb_app or False
     sb_package_id = args.sb_package_id or None
     workflow_path = args.workflow_path or None
@@ -203,37 +210,45 @@ def main():
             "--dump-sb-app and/or --auto are not used"
         )
 
-    if sb_schema and execution_mode:
-        logger.warning(
-            "Using --sb-schema option overwrites --execution-mode"
-        )
+    if git_url and not label:
+        label = os.path.basename(git_url)
+        if branch:
+            label += f" {branch}"
 
-    if sb_schema and label:
-        logger.warning(
-            "Using --sb-schema option overwrites --app-name"
-        )
+    if sb_schema:
+        if execution_mode:
+            logger.warning(
+                "Using --sb-schema option overwrites --execution-mode."
+            )
 
-    if sb_schema and executor_version:
-        logger.warning(
-            "Using --sb-schema option overwrites --executor-version"
-        )
+        if label:
+            logger.warning(
+                "Using --sb-schema option overwrites --app-name."
+            )
 
-    if sb_schema and entrypoint:
-        logger.warning(
-            "Using --sb-schema option overwrites --entrypoint"
-        )
+        if executor_version:
+            logger.warning(
+                "Using --sb-schema option overwrites --executor-version."
+            )
+
+        if entrypoint:
+            logger.warning(
+                "Using --sb-schema option overwrites --entrypoint."
+            )
+
+        if readme_path:
+            logger.warning(
+                "Using --sb-schema option overwrites --sb-doc."
+            )
+
+        if revision_note:
+            logger.warning(
+                "Using --sb-schema option overwrites --revision-note."
+            )
 
     if git_url:
         cleanup_workflow_path = True
         workflow_path = get_git_repo(git_url, branch)
-
-    sb_doc = None
-    if args.sb_doc:
-        with open(args.sb_doc, 'r') as f:
-            sb_doc = f.read()
-    elif get_readme(workflow_path):
-        with open(get_readme(workflow_path), 'r') as f:
-            sb_doc = f.read()
 
     if args.auto:
         # This is where the magic happens
@@ -264,11 +279,12 @@ def main():
 
     nf_wrapper = SBNextflowWrapper(
         workflow_path=workflow_path,
-        sb_doc=sb_doc,
+        readme_path=readme_path,
         label=label,
         entrypoint=entrypoint,
         executor_version=executor_version,
         sb_package_id=sb_package_id,
+        search_subfolders=True,
     )
 
     if sb_schema:

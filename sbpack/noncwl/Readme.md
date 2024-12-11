@@ -220,7 +220,7 @@ Given the contents of this sample sheet is:
 
 Remapped file will be:
 
-| sample  | fastq_1                                                           | fastq_2                                                           | strandedness |
-|:--------|:------------------------------------------------------------------|:------------------------------------------------------------------|:-------------|
-| SAMPLE1 | vs:///Projects/project-root-uuid/RNAseq_inputs/SAMPLE1_1.fastq.gz | vs:///Projects/project-root-uuid/RNAseq_inputs/SAMPLE1_2.fastq.gz | reverse      |
-| SAMPLE2 | vs:///Projects/project-root-uuid/RNAseq_inputs/SAMPLE2_1.fastq.gz | vs:///Projects/project-root-uuid/RNAseq_inputs/SAMPLE2_2.fastq.gz | reverse      |
+| sample  | fastq_1                                                          | fastq_2                                                           | strandedness |
+|:--------|:-----------------------------------------------------------------|:------------------------------------------------------------------|:-------------|
+| SAMPLE1 | vs://Projects/project-root-uuid/RNAseq_inputs/SAMPLE1_1.fastq.gz | vs:///Projects/project-root-uuid/RNAseq_inputs/SAMPLE1_2.fastq.gz | reverse      |
+| SAMPLE2 | vs://Projects/project-root-uuid/RNAseq_inputs/SAMPLE2_1.fastq.gz | vs:///Projects/project-root-uuid/RNAseq_inputs/SAMPLE2_2.fastq.gz | reverse      |
