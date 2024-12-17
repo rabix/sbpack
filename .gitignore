@@ -3,3 +3,5 @@
 /sbpack.egg-info/
 /.idea/
 /venv/
+/.nextflow/
+/.pytest_cache/
