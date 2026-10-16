@@ -9,5 +9,5 @@ steps:
         source: in
     out:
       - id: output_file
-    run: https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests/cat3-tool-docker.cwl
+    run: https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/v1.2.0/tests/cat3-tool-docker.cwl
 

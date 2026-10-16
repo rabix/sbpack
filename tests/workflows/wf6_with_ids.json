@@ -106,7 +106,10 @@
                 "arguments": [
                     "hello world"
                 ],
-                "id": "wf6.cwl@step_s1@run"
+                "id": "wf6.cwl@step_s1@run",
+                "sbg:appVersion": [
+                    "v1.0"
+                ]
             },
             "out": [
                 "out1"
