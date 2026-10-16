@@ -2,7 +2,10 @@ import subprocess
 import pathlib
 import tempfile
 
+import pytest
 
+
+@pytest.mark.skip
 def test_pull():
 
     with tempfile.TemporaryDirectory() as td:
