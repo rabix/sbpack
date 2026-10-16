@@ -105,6 +105,9 @@
                 ],
                 "arguments": [
                     "hello world"
+                ],
+                "sbg:appVersion": [
+                    "v1.0"
                 ]
             },
             "out": [
