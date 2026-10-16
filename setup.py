@@ -19,7 +19,7 @@ setup(
     version=version,
     packages=find_packages(),
     platforms=['POSIX', 'MacOS', 'Windows'],
-    python_requires='>=3.7',
+    python_requires='>=3.9',
     install_requires=open(requirements).read().splitlines(),
     entry_points={
         'console_scripts': [
